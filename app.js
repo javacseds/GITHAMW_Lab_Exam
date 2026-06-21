@@ -410,6 +410,13 @@ window.switchLoginTab = function(tab) {
     }
 };
 
+function startAdminPolling(intervalMs) {
+    if (window.adminInterval) clearInterval(window.adminInterval);
+    if (intervalMs > 0) {
+        window.adminInterval = setInterval(renderAdmin, intervalMs);
+    }
+}
+
 document.getElementById('admin-login-btn').addEventListener('click', () => {
     const pwd = document.getElementById('admin-password-input').value;
     const correctPwd = localStorage.getItem('admin_password') || 'ADMIN123';
@@ -418,8 +425,15 @@ document.getElementById('admin-login-btn').addEventListener('click', () => {
         loginScreen.style.display = 'none';
         document.getElementById('admin-screen').style.display = 'flex';
         renderAdmin();
-        if (window.adminInterval) clearInterval(window.adminInterval);
-        window.adminInterval = setInterval(renderAdmin, 2000);
+        
+        const refreshSelect = document.getElementById('admin-refresh-interval');
+        const savedInterval = localStorage.getItem('admin_refresh_interval');
+        const intervalVal = savedInterval !== null ? parseInt(savedInterval) : 60000; // Default to 1 Min (60000)
+        
+        if (refreshSelect) {
+            refreshSelect.value = intervalVal.toString();
+        }
+        startAdminPolling(intervalVal);
     } else {
         document.getElementById('admin-login-error').style.display = 'block';
     }
@@ -438,8 +452,15 @@ async function attemptLogin() {
     loginScreen.style.display = 'none';
     document.getElementById('admin-screen').style.display = 'flex';
     renderAdmin();
-    if (window.adminInterval) clearInterval(window.adminInterval);
-    window.adminInterval = setInterval(renderAdmin, 2000);
+    
+    const refreshSelect = document.getElementById('admin-refresh-interval');
+    const savedInterval = localStorage.getItem('admin_refresh_interval');
+    const intervalVal = savedInterval !== null ? parseInt(savedInterval) : 60000; // Default to 1 Min (60000)
+    
+    if (refreshSelect) {
+        refreshSelect.value = intervalVal.toString();
+    }
+    startAdminPolling(intervalVal);
     return;
   }
   const student = studentMap[roll];
@@ -2418,6 +2439,29 @@ if (saveAdminIpBtn && adminIpModal) {
         API_BASE = getApiBase();
         adminIpModal.classList.remove('active');
         renderAdmin();
+    });
+}
+
+// Admin dashboard auto-refresh control
+const refreshIntervalSelect = document.getElementById('admin-refresh-interval');
+if (refreshIntervalSelect) {
+    refreshIntervalSelect.addEventListener('change', (e) => {
+        const val = parseInt(e.target.value);
+        localStorage.setItem('admin_refresh_interval', val);
+        startAdminPolling(val);
+    });
+}
+
+const refreshNowBtn = document.getElementById('admin-refresh-now-btn');
+if (refreshNowBtn) {
+    refreshNowBtn.addEventListener('click', () => {
+        const originalText = refreshNowBtn.textContent;
+        refreshNowBtn.textContent = '…';
+        refreshNowBtn.disabled = true;
+        renderAdmin().finally(() => {
+            refreshNowBtn.textContent = originalText;
+            refreshNowBtn.disabled = false;
+        });
     });
 }
 

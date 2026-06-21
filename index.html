@@ -173,6 +173,16 @@
               <span class="pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
               DATABASE OFFLINE
           </span>
+          <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px;">
+              <span style="font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;">AUTO-SYNC:</span>
+              <select id="admin-refresh-interval" style="background:transparent; color:#fff; border:none; outline:none; font-size:11px; font-weight:600; cursor:pointer;">
+                  <option value="2000">2 Sec</option>
+                  <option value="30000">30 Sec</option>
+                  <option value="60000" selected>1 Min</option>
+                  <option value="0">Manual</option>
+              </select>
+              <button id="admin-refresh-now-btn" style="background:transparent; border:none; color:var(--muted); font-size:12px; cursor:pointer; padding:0 2px; margin-left:4px; transition:color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted)'" title="Sync now">⟳</button>
+          </div>
           <button id="toggle-exam-btn" class="clear-btn" style="border:1px solid rgba(255,255,255,0.2);">Close Exam</button>
           <button id="admin-add-student-btn" class="run-btn" style="padding:8px 16px; font-size:12px; background:linear-gradient(135deg,#6366f1,#818cf8);">+ Add Student</button>
           <button id="admin-config-ip-btn" class="clear-btn" style="padding:8px 16px; font-size:12px; border:1px solid rgba(255,255,255,0.2); margin-right:4px;">🌐 Server IP</button>
