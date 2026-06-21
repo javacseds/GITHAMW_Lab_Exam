@@ -444,6 +444,18 @@ document.getElementById('admin-password-input').addEventListener('keydown', e =>
 });
 
 async function attemptLogin() {
+  // Automatically apply and save the Server IP configuration from the input box, if typed
+  const ipInput = document.getElementById('server-ip-input');
+  if (ipInput) {
+      const ip = ipInput.value.trim();
+      if (ip) {
+          localStorage.setItem('api_server_ip', ip);
+      } else {
+          localStorage.removeItem('api_server_ip');
+      }
+      API_BASE = getApiBase();
+  }
+
   const roll = rollInput.value.trim().toUpperCase();
   if (!roll) return;
   
@@ -482,41 +494,46 @@ async function attemptLogin() {
 
   try {
       // 1. Live database status check to prevent concurrent parallel logins
-      try {
-          const res = await fetch(`${API_BASE}/api/results/${roll}`);
-          const data = await res.json();
-          if (data.exists) {
-              const liveData = data.data;
-              if (liveData.status === "ABSENT") {
-                  loginError.textContent = "⚠ Exam has been deactivated for this student (Marked Absent).";
-                  loginError.style.display = 'block';
-                  rollInput.focus();
-                  loginBtn.textContent = originalBtnText;
-                  loginBtn.disabled = false;
-                  return;
-              }
-              if (liveData.status === "SUBMITTED") {
-                  loginError.textContent = "⚠ This student has already submitted the exam.";
-                  loginError.style.display = 'block';
-                  rollInput.focus();
-                  loginBtn.textContent = originalBtnText;
-                  loginBtn.disabled = false;
-                  return;
-              }
-              if (liveData.status === "ACTIVE" || liveData.status === "IDLE") {
-                  loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
-                  loginError.style.display = 'block';
-                  rollInput.focus();
-                  loginBtn.textContent = originalBtnText;
-                  loginBtn.disabled = false;
-                  return;
-              }
+      const res = await fetch(`${API_BASE}/api/results/${roll}`);
+      if (!res.ok) throw new Error("HTTP error " + res.status);
+      const data = await res.json();
+      
+      if (data.exists) {
+          const liveData = data.data;
+          if (liveData.status === "ABSENT") {
+              loginError.textContent = "⚠ Exam has been deactivated for this student (Marked Absent).";
+              loginError.style.display = 'block';
+              rollInput.focus();
+              loginBtn.textContent = originalBtnText;
+              loginBtn.disabled = false;
+              return;
           }
-      } catch(e) {
-          console.error("Live database status check failed", e);
+          if (liveData.status === "SUBMITTED") {
+              loginError.textContent = "⚠ This student has already submitted the exam.";
+              loginError.style.display = 'block';
+              rollInput.focus();
+              loginBtn.textContent = originalBtnText;
+              loginBtn.disabled = false;
+              return;
+          }
+          if (liveData.status === "ACTIVE" || liveData.status === "IDLE") {
+              loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
+              loginError.style.display = 'block';
+              rollInput.focus();
+              loginBtn.textContent = originalBtnText;
+              loginBtn.disabled = false;
+              return;
+          }
       }
   } catch(e) {
-      console.error("Live database status check failed", e);
+      console.error("Live database status check failed:", e);
+      // Force database connectivity. Block login if server is unreachable!
+      loginError.textContent = "⚠ Connection to exam server failed. Please check the Server Connection IP at the bottom or contact the invigilator.";
+      loginError.style.display = 'block';
+      rollInput.focus();
+      loginBtn.textContent = originalBtnText;
+      loginBtn.disabled = false;
+      return;
   }
 
   // 2. Local storage backup checks
