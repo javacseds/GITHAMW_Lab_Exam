@@ -329,7 +329,7 @@ function getStudentQuestions(studentIdx) {
 }
 
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' || !window.location.hostname
   ? 'http://localhost:3000' 
   : '';
 
