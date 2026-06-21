@@ -483,20 +483,12 @@ async function attemptLogin() {
                   return;
               }
               if (liveData.status === "ACTIVE" || liveData.status === "IDLE") {
-                  if (liveData.lastSyncStr) {
-                      const lastSync = new Date(liveData.lastSyncStr).getTime();
-                      const now = Date.now();
-                      const diffSeconds = (now - lastSync) / 1000;
-                      // If the last heartbeat was received within the last 60 seconds, block parallel login
-                      if (diffSeconds < 60) {
-                          loginError.textContent = "⚠ This Roll Number is already active on another device/tab.";
-                          loginError.style.display = 'block';
-                          rollInput.focus();
-                          loginBtn.textContent = originalBtnText;
-                          loginBtn.disabled = false;
-                          return;
-                      }
-                  }
+                  loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
+                  loginError.style.display = 'block';
+                  rollInput.focus();
+                  loginBtn.textContent = originalBtnText;
+                  loginBtn.disabled = false;
+                  return;
               }
           }
       } catch(e) {
