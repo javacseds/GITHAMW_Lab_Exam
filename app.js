@@ -2175,12 +2175,27 @@ if (addStudentBtn) {
         document.getElementById('add-student-modal').classList.remove('active');
     });
 
+    // Support submitting by pressing Enter key on any input field
+    ['add-roll-input', 'add-name-input', 'add-branch-input'].forEach(id => {
+        const inputEl = document.getElementById(id);
+        if (inputEl) {
+            inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('save-add-btn').click();
+                }
+            });
+        }
+    });
+
     document.getElementById('save-add-btn').addEventListener('click', () => {
         const newRoll = document.getElementById('add-roll-input').value.trim().toUpperCase();
         const newName = document.getElementById('add-name-input').value.trim();
         const newBranch = document.getElementById('add-branch-input').value.trim();
         
-        if (!newRoll || !newName || !newBranch) return;
+        if (!newRoll || !newName || !newBranch) {
+            alert("Please fill in all fields (Roll Number, Name, and Branch) to add a student.");
+            return;
+        }
 
         if (studentMap[newRoll]) {
             alert("A student with this Roll Number already exists!");
@@ -2217,13 +2232,28 @@ document.getElementById('close-edit-btn').addEventListener('click', () => {
     document.getElementById('edit-student-modal').classList.remove('active');
 });
 
+// Support saving edits by pressing Enter key on any edit input field
+['edit-roll-input', 'edit-name-input', 'edit-branch-input'].forEach(id => {
+    const inputEl = document.getElementById(id);
+    if (inputEl) {
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('save-edit-btn').click();
+            }
+        });
+    }
+});
+
 document.getElementById('save-edit-btn').addEventListener('click', () => {
     const originalRoll = document.getElementById('edit-original-roll').value;
     const newRoll = document.getElementById('edit-roll-input').value.trim().toUpperCase();
     const newName = document.getElementById('edit-name-input').value.trim();
     const newBranch = document.getElementById('edit-branch-input').value.trim();
     
-    if (!newRoll || !newName || !newBranch) return;
+    if (!newRoll || !newName || !newBranch) {
+        alert("Please fill in all fields (Roll Number, Name, and Branch) to save changes.");
+        return;
+    }
 
     // Update in-memory
     const student = students.find(s => s.roll === originalRoll);
