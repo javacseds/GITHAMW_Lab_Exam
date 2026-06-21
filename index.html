@@ -158,6 +158,10 @@
             <span class="header-title" style="font-size:20px;color:var(--accent2);">Exam Administrator Dashboard</span>
             <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
           <span id="exam-status-indicator" style="padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;">EXAM OPEN</span>
+          <span id="db-status-indicator" style="padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;transition:all 0.3s;display:flex;align-items:center;gap:6px;">
+              <span class="pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+              DATABASE OFFLINE
+          </span>
           <button id="toggle-exam-btn" class="clear-btn" style="border:1px solid rgba(255,255,255,0.2);">Close Exam</button>
           <button id="admin-add-student-btn" class="run-btn" style="padding:8px 16px; font-size:12px; background:linear-gradient(135deg,#6366f1,#818cf8);">+ Add Student</button>
           <button id="admin-change-pwd-btn" class="clear-btn" style="padding:8px 16px; font-size:12px; border:1px solid rgba(255,255,255,0.2);">🔒 Change Password</button>

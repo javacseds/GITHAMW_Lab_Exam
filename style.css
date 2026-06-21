@@ -27,6 +27,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--text);m
 @keyframes shimmer{0%{background-position:-400px 0;}100%{background-position:400px 0;}}
 @keyframes timerPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4);}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);}}
 @keyframes spin{to{transform:rotate(360deg);}}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1;box-shadow:0 0 8px currentColor;}50%{transform:scale(1.2);opacity:0.8;box-shadow:0 0 12px currentColor;}}
+.pulse-dot{animation:pulse 1.8s infinite ease-in-out;}
 
 .loader-overlay {
     position: fixed;

@@ -1554,11 +1554,27 @@ async function renderAdmin(skipFirebaseFetch = false) {
               tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted);">Loading live results from PostgreSQL...</td></tr>';
           }
           const res = await fetch(`${API_BASE}/api/results`);
+          if (!res.ok) throw new Error("HTTP error " + res.status);
           const dbResults = await res.json();
           results = { ...results, ...dbResults };
           localStorage.setItem('assessment_results', JSON.stringify(results));
+          
+          // Update DB Status indicator to ONLINE
+          const dbInd = document.getElementById('db-status-indicator');
+          if (dbInd) {
+              dbInd.style.background = 'rgba(16,185,129,0.15)';
+              dbInd.style.color = '#34d399';
+              dbInd.innerHTML = '<span class="pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;box-shadow:0 0 8px #34d399;"></span> DATABASE ONLINE';
+          }
       } catch (e) {
           console.error("Error fetching from PostgreSQL. Using local results.", e);
+          // Update DB Status indicator to OFFLINE
+          const dbInd = document.getElementById('db-status-indicator');
+          if (dbInd) {
+              dbInd.style.background = 'rgba(239,68,68,0.15)';
+              dbInd.style.color = '#fca5a5';
+              dbInd.innerHTML = '<span class="pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span> DATABASE OFFLINE';
+          }
       }
   }
   tbody.innerHTML = '';
@@ -1651,6 +1667,10 @@ async function renderAdmin(skipFirebaseFetch = false) {
 
   // Render Charts
   setTimeout(() => {
+    if (typeof Chart === 'undefined') {
+        console.warn("Chart.js is not loaded. Skipping chart rendering.");
+        return;
+    }
     const ctx1 = document.getElementById('branchChart').getContext('2d');
     if (chartInstance1) chartInstance1.destroy();
     chartInstance1 = new Chart(ctx1, {
@@ -1888,6 +1908,17 @@ document.getElementById('admin-clear-btn').addEventListener('click', () => {
 
 
 document.getElementById('admin-download-btn').addEventListener('click', () => {
+    if (typeof html2pdf === 'undefined') {
+        // Fall back to native browser printing if offline
+        document.body.classList.add('printing-admin');
+        document.title = 'Consolidated_Branch_Report';
+        window.print();
+        document.title = 'Python Lab Assessment · Gowthami Institute';
+        document.body.classList.remove('printing-admin');
+        alert('Consolidated report generated via browser print utility.');
+        return;
+    }
+    
     // We will generate PDF of the entire admin-report-container
     // First, let's inject a header with date
     const container = document.getElementById('admin-report-container');
