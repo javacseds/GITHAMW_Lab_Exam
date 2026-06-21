@@ -482,9 +482,12 @@ function initAdminSSE() {
     adminSseSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data && data.type === 'UPDATE') {
-                console.log("[SSE] Received UPDATE event. Re-rendering admin dashboard...");
+            if (data && (data.type === 'UPDATE' || data.type === 'ACTIVITY')) {
+                console.log(`[SSE] Received ${data.type} event. Re-rendering admin dashboard...`);
                 renderAdmin(false); // Refetches live results from database
+                if (window.renderActivityTimeline) {
+                    window.renderActivityTimeline();
+                }
             }
         } catch (err) {
             console.error("[SSE] Error parsing SSE message:", err);
@@ -821,6 +824,34 @@ async function handleSaveEditStudent() {
     renderAdmin();
 }
 
+window.openEditStudent = function(roll) {
+    const student = students.find(s => s.roll === roll);
+    let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+    const res = results[roll] || {};
+    
+    const branchName = student ? student.branch : res.branch;
+    const derived = deriveDeptAndSection(branchName, roll);
+    
+    document.getElementById('edit-original-roll').value = roll;
+    document.getElementById('edit-roll-input').value = roll;
+    document.getElementById('edit-name-input').value = res.name !== undefined ? res.name : (student ? student.name : '');
+    document.getElementById('edit-dept-input').value = res.department !== undefined ? res.department : (student && student.department ? student.department : derived.department);
+    document.getElementById('edit-branch-input').value = res.branch !== undefined ? res.branch : (student ? student.branch : '');
+    document.getElementById('edit-sec-input').value = res.section !== undefined ? res.section : (student && student.section ? student.section : derived.section);
+    document.getElementById('edit-semester-input').value = res.semester !== undefined ? res.semester : (student && student.semester ? student.semester : '');
+    
+    const yearVal = res.academicYear !== undefined ? res.academicYear : (res.academic_year !== undefined ? res.academic_year : (student && (student.academicYear || student.academic_year) ? (student.academicYear || student.academic_year) : ''));
+    document.getElementById('edit-year-input').value = yearVal;
+    
+    const mobileVal = res.mobileNumber !== undefined ? res.mobileNumber : (res.mobile_number !== undefined ? res.mobile_number : (student && (student.mobileNumber || student.mobile_number) ? (student.mobileNumber || student.mobile_number) : ''));
+    document.getElementById('edit-mobile-input').value = mobileVal;
+    
+    document.getElementById('edit-email-input').value = res.email !== undefined ? res.email : (student && student.email ? student.email : '');
+    document.getElementById('edit-permission-input').value = res.examPermission || res.exam_permission || (student && student.exam_permission) || 'Allowed';
+    
+    document.getElementById('edit-student-modal').classList.add('active');
+};
+
 window.toggleExamPermission = async function(roll) {
     let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
     const currentPermission = (results[roll] && (results[roll].examPermission || results[roll].exam_permission)) || 'Allowed';
@@ -880,6 +911,45 @@ window.deleteStudent = async function(roll) {
         }
         
         renderAdmin();
+    }
+};
+
+window.logStudentActivity = async function(roll, eventType, details = '', questionNo = null) {
+    if (!roll) return;
+    
+    let device = '';
+    let browser = '';
+    if (eventType === 'LOGIN') {
+        const ua = navigator.userAgent;
+        if (/mobile/i.test(ua)) device = 'Mobile Device';
+        else if (/ipad|tablet/i.test(ua)) device = 'Tablet';
+        else device = 'Desktop';
+
+        if (/chrome|crios/i.test(ua)) browser = 'Chrome';
+        else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+        else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
+        else if (/opr/i.test(ua)) browser = 'Opera';
+        else if (/edg/i.test(ua)) browser = 'Edge';
+        else browser = 'Browser';
+    }
+
+    const payload = {
+        roll,
+        eventType,
+        details,
+        device,
+        browser,
+        questionNo
+    };
+
+    try {
+        await fetch(`${API_BASE}/api/activities`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        console.error("Failed to log activity:", e);
     }
 };
 
@@ -1012,6 +1082,10 @@ async function attemptLogin() {
       };
       localStorage.setItem('assessment_results', JSON.stringify(results));
 
+      if (window.logStudentActivity) {
+          await logStudentActivity(roll, 'LOGIN');
+      }
+
       loginError.style.display = 'none';
       loginBtn.textContent = originalBtnText;
       loginBtn.disabled = false;
@@ -1067,6 +1141,10 @@ async function attemptLogin() {
               loginBtn.disabled = false;
               return;
           }
+      }
+
+      if (window.logStudentActivity) {
+          await logStudentActivity(roll, 'LOGIN');
       }
 
       loginError.style.display = 'none';
@@ -1234,6 +1312,10 @@ async function startExam(student) {
   lastActivityTime = Date.now();
   await syncStudentHeartbeat();
 
+  if (window.logStudentActivity) {
+      await logStudentActivity(student.roll, 'START_EXAM');
+  }
+
   loginScreen.style.display    = 'none';
   examScreen.style.display     = 'flex';
   window.scrollTo(0, 0);
@@ -1349,6 +1431,10 @@ function toggleEditorVisibility() {
 function renderQuestion(tabIdx) {
   const qIdx = assignedQIdxs[tabIdx];
   const q = questions[qIdx];
+
+  if (currentStudent && window.logStudentActivity) {
+      logStudentActivity(currentStudent.roll, 'OPEN_QUESTION', `Question ${tabIdx + 1}: ${q.title}`, tabIdx + 1);
+  }
   const panel = document.getElementById('q-panel');
 
   let constraintsHtml = '';
@@ -1532,6 +1618,10 @@ async function terminateExam(type) {
     } catch (e) {
         console.error("Failed to save final result to database via API after retries:", e);
         alert("⚠ SUBMISSION WARNING: Could not connect to Neon DB. Your exam was saved locally, but final verification failed. Please show this to the invigilator.");
+    }
+
+    if (currentStudent && window.logStudentActivity) {
+        await logStudentActivity(currentStudent.roll, 'EXAM_SUBMITTED', `Type: ${type}`);
     }
 
     document.getElementById('loader').classList.add('hidden');
@@ -1859,6 +1949,10 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     let code = editor.getValue();
     if (!code.trim()) return;
     
+    if (currentStudent && window.logStudentActivity) {
+        logStudentActivity(currentStudent.roll, 'RUN_CODE', `Question ${currentTab + 1}`, currentTab + 1);
+    }
+    
     // Automatically convert any tabs to 4 spaces to prevent TabError
     code = code.replace(/\t/g, '    ');
 
@@ -2018,6 +2112,10 @@ _grade_run()
     // Save progress
     autoSaveProgress();
     await syncProgressToFirebase();
+
+    if (currentStudent && window.logStudentActivity) {
+        await logStudentActivity(currentStudent.roll, 'SUBMIT_ANSWER', `Question ${currentTab + 1} (${allPassed ? 'Passed' : 'Failed'})`, currentTab + 1);
+    }
 
     // Dynamically update the Marks header inside the left question description panel too!
     renderQuestion(currentTab);
@@ -2183,7 +2281,7 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
   if (!skipFirebaseFetch) {
       try {
           if (!tbody.innerHTML || tbody.innerHTML.trim() === '') {
-              tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted);">Loading live results from PostgreSQL...</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:20px;color:var(--muted);">Loading live results...</td></tr>';
           }
           const res = await fetch(`${API_BASE}/api/results`);
           if (!res.ok) throw new Error("HTTP error " + res.status);
@@ -2198,7 +2296,7 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
               dbInd.innerHTML = '<span class="pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;box-shadow:0 0 8px #34d399;"></span> DATABASE ONLINE';
           }
       } catch (e) {
-          console.error("Error fetching from PostgreSQL. Using local results.", e);
+          console.error("Error fetching from Neon. Using local results.", e);
           const dbInd = document.getElementById('db-status-indicator');
           if (dbInd) {
               dbInd.style.background = 'rgba(239,68,68,0.15)';
@@ -2226,19 +2324,19 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
   
   let branchStats = {};
   let totalRegistered = students.length;
+  let totalOnline = 0;
+  let totalLoggedIn = 0;
   let totalStarted = 0;
-  let totalSubmitted = 0;
-  let totalAbsent = 0;
-  let totalPending = 0;
   let totalInProgress = 0;
+  let totalSubmitted = 0;
+  let totalPending = 0;
+  let totalAbsent = 0;
   
   let marksList = [];
   let passedSubmittedCount = 0;
   let failedSubmittedCount = 0;
   let totalExcellent = 0;
   let totalGood = 0;
-  let totalPass = 0;
-  let totalFail = 0;
   
   students.forEach((s) => {
     if (!branchStats[s.branch]) {
@@ -2248,6 +2346,15 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
     
     const res = results[s.roll];
     if (res) {
+      const onlineVal = res.onlineStatus || res.online_status || 'Offline';
+      if (onlineVal === 'Online') {
+          totalOnline++;
+      }
+      
+      if (res.loginTime || res.login_time) {
+          totalLoggedIn++;
+      }
+      
       if (res.status === "ABSENT") {
          branchStats[s.branch].absent++;
          totalAbsent++;
@@ -2262,7 +2369,6 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
          
          if (m >= 40) totalExcellent++;
          else if (m >= 30) totalGood++;
-         else totalFail++;
          
          if (m >= 30) {
              passedSubmittedCount++;
@@ -2272,6 +2378,8 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
       } else if (res.status === "ACTIVE" || res.status === "IDLE") {
          totalStarted++;
          totalInProgress++;
+      } else {
+         totalPending++;
       }
     } else {
       totalPending++;
@@ -2279,57 +2387,67 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
   });
 
   let avgMarks = 0;
-  let maxMarks = 0;
-  let minMarks = 0;
-  let passPercent = 0;
-  let failPercent = 0;
+  let highestMarks = 0;
+  let lowestMarks = 0;
+  let passPercentage = 0;
+  let failPercentage = 0;
   
   if (marksList.length > 0) {
       const sum = marksList.reduce((a, b) => a + b, 0);
       avgMarks = (sum / marksList.length).toFixed(1);
-      maxMarks = Math.max(...marksList);
-      minMarks = Math.min(...marksList);
-      passPercent = ((passedSubmittedCount / marksList.length) * 100).toFixed(1);
-      failPercent = ((failedSubmittedCount / marksList.length) * 100).toFixed(1);
+      highestMarks = Math.max(...marksList);
+      lowestMarks = Math.min(...marksList);
+      passPercentage = ((passedSubmittedCount / marksList.length) * 100).toFixed(1);
+      failPercentage = ((failedSubmittedCount / marksList.length) * 100).toFixed(1);
   }
 
   const analyticsDiv = document.getElementById('admin-analytics');
   let analyticsHTML = `
     <div style="width:100%; display:flex; flex-direction:column; gap:20px;">
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; width:100%;">
+         <!-- Card 1: Registration Status -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:var(--accent2); font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Registration Status</div>
-             <div style="font-size:32px; color:var(--text); font-weight:700; margin:10px 0;">${totalRegistered}</div>
+             <div style="font-size:28px; color:var(--text); font-weight:700; margin:10px 0;">${totalRegistered} <span style="font-size:14px; color:var(--muted); font-weight:normal;">Registered</span></div>
              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
                  <span>Pending: <strong style="color:var(--text);">${totalPending}</strong></span>
                  <span>Absent: <strong style="color:var(--red);">${totalAbsent}</strong></span>
              </div>
          </div>
+         <!-- Card 2: Live Activity -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-             <div style="font-family:'Space Mono',monospace; color:#3b82f6; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Exam Progress</div>
-             <div style="font-size:32px; color:#60a5fa; font-weight:700; margin:10px 0;">${totalStarted}</div>
+             <div style="font-family:'Space Mono',monospace; color:#3b82f6; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Live Connectivity</div>
+             <div style="font-size:28px; color:#60a5fa; font-weight:700; margin:10px 0;">${totalOnline} <span style="font-size:14px; color:var(--muted); font-weight:normal;">Online</span></div>
+             <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+                 <span>Logged In: <strong style="color:var(--text);">${totalLoggedIn}</strong></span>
+                 <span>Offline: <strong style="color:var(--muted);">${totalRegistered - totalOnline}</strong></span>
+             </div>
+         </div>
+         <!-- Card 3: Exam Progress -->
+         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+             <div style="font-family:'Space Mono',monospace; color:#10b981; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Exam Progress</div>
+             <div style="font-size:28px; color:#34d399; font-weight:700; margin:10px 0;">${totalStarted} <span style="font-size:14px; color:var(--muted); font-weight:normal;">Started</span></div>
              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
                  <span>In Progress: <strong style="color:#fb923c;">${totalInProgress}</strong></span>
                  <span>Submitted: <strong style="color:#34d399;">${totalSubmitted}</strong></span>
              </div>
          </div>
+         <!-- Card 4: Score Range -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-             <div style="font-family:'Space Mono',monospace; color:#10b981; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Average Score</div>
-             <div style="font-size:32px; color:#34d399; font-weight:700; margin:10px 0;">${avgMarks} <span style="font-size:16px; color:var(--muted);">/ 50</span></div>
-             <div style="font-size:12px; color:var(--muted);">From ${totalSubmitted} submitted exams</div>
-         </div>
-         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-             <div style="font-family:'Space Mono',monospace; color:#fb923c; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Score Range</div>
-             <div style="font-size:32px; color:#fdba74; font-weight:700; margin:10px 0;">${maxMarks} <span style="font-size:16px; color:var(--muted);">Max</span></div>
+             <div style="font-family:'Space Mono',monospace; color:#fb923c; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Average Score</div>
+             <div style="font-size:28px; color:#fdba74; font-weight:700; margin:10px 0;">${avgMarks} <span style="font-size:14px; color:var(--muted); font-weight:normal;">Avg Marks</span></div>
              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
-                 <span>Min Score: <strong style="color:var(--text);">${minMarks}</strong></span>
+                 <span>Highest: <strong style="color:#34d399;">${highestMarks}</strong></span>
+                 <span>Lowest: <strong style="color:#f87171;">${lowestMarks}</strong></span>
              </div>
          </div>
+         <!-- Card 5: Result Classification -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:#ec4899; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Success Rate</div>
-             <div style="font-size:32px; color:#f472b6; font-weight:700; margin:10px 0;">${passPercent}% <span style="font-size:16px; color:var(--muted);">Pass</span></div>
+             <div style="font-size:28px; color:#f472b6; font-weight:700; margin:10px 0;">${passPercentage}% <span style="font-size:14px; color:var(--muted); font-weight:normal;">Pass</span></div>
              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
-                 <span>Fail Rate: <strong style="color:var(--red);">${failPercent}%</strong></span>
+                 <span>Fail Rate: <strong style="color:#f87171;">${failPercentage}%</strong></span>
+                 <span>Submitted: <strong style="color:var(--text);">${totalSubmitted}</strong></span>
              </div>
          </div>
       </div>
@@ -2416,20 +2534,26 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
   if (thead) {
       thead.innerHTML = `
           <tr style="background:rgba(255,255,255,.05);border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;">
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:3%;">#</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Hall Ticket</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Name</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:5%;">Dept</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Branch</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Sec</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Permission</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Exam Status</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Submission</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:6%;">Marks</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:7%;">Result</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Started</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Submitted</th>
-              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:12%; white-space:nowrap;">Actions</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:2%;">#</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:8%;white-space:nowrap;">Hall Ticket</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:8%;">Name</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Dept</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Branch</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:2%;">Sec</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">Permission</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">Online Status</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">Exam Status</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:4%;white-space:nowrap;">Curr Q</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:8%;">Activity</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Warnings</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:5%;">Marks</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Correct</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Wrong</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">Login Time</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">Start Time</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">End Time</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:6%;white-space:nowrap;">Last Active</th>
+              <th style="padding:10px 4px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Actions</th>
           </tr>
       `;
   }
@@ -2497,7 +2621,7 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
 
   if (sortedStudents.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="14" style="text-align:center;padding:30px;color:var(--muted2);font-size:14px;">No students found matching current filters</td>`;
+      tr.innerHTML = `<td colspan="20" style="text-align:center;padding:30px;color:var(--muted2);font-size:14px;">No students found matching current filters</td>`;
       tbody.appendChild(tr);
   } else {
       const displayValue = (val) => {
@@ -2530,6 +2654,7 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
         tr.style.transition = 'background 0.2s';
+        tr.style.fontSize = '12px';
         tr.onmouseover = () => tr.style.background = 'rgba(255,255,255,0.02)';
         tr.onmouseout = () => tr.style.background = 'transparent';
         
@@ -2539,29 +2664,19 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
         } else if (isSub) {
             examStatusBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;">COMPLETED</span>`;
         } else if (isActive || isIdle) {
-            const now = Date.now();
-            const lastSync = res.lastSyncStr ? new Date(res.lastSyncStr).getTime() : 0;
-            const diffSeconds = (now - lastSync) / 1000;
-            
-            if (diffSeconds > 45) {
-                examStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>OFFLINE</span>`;
-            } else if (isActive) {
-                examStatusBadge = `<span class="pulse-dot" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>ONLINE</span>`;
+            if (isActive) {
+                examStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;">ACTIVE</span>`;
             } else if (isIdle) {
-                examStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(249,115,22,0.15);color:#fb923c;"><span style="width:6px;height:6px;border-radius:50%;background:#fb923c;display:inline-block;"></span>IDLE</span>`;
+                examStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(249,115,22,0.15);color:#fb923c;">IDLE</span>`;
             }
         }
         
-        let subStatus = "Not Started";
-        if (isSub) subStatus = "SUBMITTED";
-        else if (isActive || isIdle) subStatus = "In Progress";
-        else if (!s.name && !s.branch) subStatus = "Not Assigned";
-        
-        let subBadge = `<span style="color:var(--muted2);">${subStatus}</span>`;
-        if (isSub) {
-            subBadge = `<span style="color:#34d399;font-weight:600;">SUBMITTED</span>`;
-        } else if (isActive || isIdle) {
-            subBadge = `<span style="color:#fb923c;font-weight:600;">In Progress</span>`;
+        const onlineVal = res.onlineStatus || res.online_status || 'Offline';
+        let onlineStatusBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.05);color:var(--muted2);">Offline</span>`;
+        if (onlineVal === 'Online') {
+            onlineStatusBadge = `<span class="pulse-dot" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>Online</span>`;
+        } else if (onlineVal === 'Idle') {
+            onlineStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(249,115,22,0.15);color:#fb923c;"><span style="width:6px;height:6px;border-radius:50%;background:#fb923c;display:inline-block;"></span>Idle</span>`;
         }
         
         const permission = res.examPermission || res.exam_permission || s.exam_permission || 'Allowed';
@@ -2570,40 +2685,45 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
             permissionBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;cursor:pointer;white-space:nowrap;" onclick="toggleExamPermission('${s.roll}')">Blocked</span>`;
         }
         
-        let resultBadge = `-`;
-        if (isSub && !isAbs) {
-            const marksVal = res.marks || 0;
-            if (marksVal >= 40) {
-                resultBadge = `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(234,179,8,0.15);color:#fde047;">Excellent</span>`;
-            } else if (marksVal >= 30) {
-                resultBadge = `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(59,130,246,0.15);color:#60a5fa;">Good</span>`;
-            } else {
-                resultBadge = `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;">Fail</span>`;
-            }
-        }
-        
         const nameVal = displayValue(res.name !== undefined ? res.name : s.name);
         const deptVal = displayValue(res.department !== undefined ? res.department : (s.department || derived.department));
         const branchVal = displayValue(res.branch !== undefined ? res.branch : s.branch);
         const secVal = displayValue(res.section !== undefined ? res.section : (s.section || derived.section));
         
+        const currentQ = res.currentQuestion !== undefined && res.currentQuestion !== null && res.currentQuestion > 0 ? `Q${res.currentQuestion}` : '-';
+        const activityVal = res.currentActivity || res.current_activity || '-';
+        const warningsVal = res.tabWarnings !== undefined ? res.tabWarnings : (res.tab_warnings !== undefined ? res.tab_warnings : 0);
+        let warningsBadge = `<span style="font-family:'Space Mono',monospace;">${warningsVal}</span>`;
+        if (warningsVal > 0) {
+            warningsBadge = `<strong style="font-family:'Space Mono',monospace; color: ${warningsVal >= 3 ? 'var(--red)' : 'var(--accent)'};">${warningsVal}</strong>`;
+        }
+
+        const isLive = isActive || isIdle || isSub;
+        const marksDisp = isLive ? (res.marks !== undefined ? `${res.marks} / 50` : '0 / 50') : '-';
+        const correctDisp = isLive ? (res.correctCount !== undefined ? res.correctCount : 0) : '-';
+        const wrongDisp = isLive ? (res.wrongCount !== undefined ? res.wrongCount : 0) : '-';
+        
         tr.innerHTML = `
-          <td style="padding:10px 6px;color:var(--muted2);">${i + 1}</td>
-          <td style="padding:10px 6px;font-family:'Space Mono',monospace;color:var(--text); white-space:nowrap;">${s.roll}</td>
-          <td style="padding:10px 6px;color:var(--text);">${nameVal}</td>
-          <td style="padding:10px 6px;color:var(--text);">${deptVal}</td>
-          <td style="padding:10px 6px;color:var(--muted);">${branchVal}</td>
-          <td style="padding:10px 6px;color:var(--muted);">${secVal}</td>
-          <td style="padding:10px 6px;">${permissionBadge}</td>
-          <td style="padding:10px 6px;">${examStatusBadge}</td>
-          <td style="padding:10px 6px;">${subBadge}</td>
-          <td style="padding:10px 6px;font-family:'Space Mono',monospace;font-weight:700;color:${isSub && !isAbs ? 'var(--text)' : 'var(--muted2)'};">
-            ${isSub && !isAbs ? res.marks + ' / 50' : '-'}
-          </td>
-          <td style="padding:10px 6px;">${resultBadge}</td>
-          <td style="padding:10px 6px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.examStartTime)}</td>
-          <td style="padding:10px 6px;color:var(--muted); font-size:11px; white-space:nowrap;">${isSub && !isAbs ? formatTime(res.timestamp) : '-'}</td>
-          <td style="padding:10px 6px; white-space:nowrap;">
+          <td style="padding:10px 4px;color:var(--muted2);">${i + 1}</td>
+          <td style="padding:10px 4px;font-family:'Space Mono',monospace;color:var(--text); white-space:nowrap;">${s.roll}</td>
+          <td style="padding:10px 4px;color:var(--text);">${nameVal}</td>
+          <td style="padding:10px 4px;color:var(--text);">${deptVal}</td>
+          <td style="padding:10px 4px;color:var(--muted);">${branchVal}</td>
+          <td style="padding:10px 4px;color:var(--muted);">${secVal}</td>
+          <td style="padding:10px 4px;">${permissionBadge}</td>
+          <td style="padding:10px 4px;">${onlineStatusBadge}</td>
+          <td style="padding:10px 4px;">${examStatusBadge}</td>
+          <td style="padding:10px 4px;font-family:'Space Mono',monospace;text-align:center;">${currentQ}</td>
+          <td style="padding:10px 4px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${activityVal}">${activityVal}</td>
+          <td style="padding:10px 4px;text-align:center;">${warningsBadge}</td>
+          <td style="padding:10px 4px;font-family:'Space Mono',monospace;font-weight:700;color:${isSub ? '#34d399' : (isLive ? 'var(--text)' : 'var(--muted2)')};">${marksDisp}</td>
+          <td style="padding:10px 4px;text-align:center;font-family:'Space Mono',monospace;color:${correctDisp > 0 ? '#34d399' : 'var(--muted2)'};">${correctDisp}</td>
+          <td style="padding:10px 4px;text-align:center;font-family:'Space Mono',monospace;color:${wrongDisp > 0 ? 'var(--red)' : 'var(--muted2)'};">${wrongDisp}</td>
+          <td style="padding:10px 4px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.loginTime || res.login_time)}</td>
+          <td style="padding:10px 4px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.examStartTime || res.exam_start_time)}</td>
+          <td style="padding:10px 4px;color:var(--muted); font-size:11px; white-space:nowrap;">${isSub ? formatTime(res.timestamp) : '-'}</td>
+          <td style="padding:10px 4px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.lastActiveStr || res.last_active_str)}</td>
+          <td style="padding:10px 4px; white-space:nowrap;">
             ${!isSub ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--red);color:var(--red);margin-right:2px;" onclick="markAbsent('${s.roll}')">Absent</button>` : ''}
             ${(isActive || isIdle) ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="resetStudentSession('${s.roll}')">Reset Session</button>` : ''}
             ${(isSub || isAbs) ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="allowRetest('${s.roll}')">Retest</button>` : ''}
@@ -2616,7 +2736,116 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
         tbody.appendChild(tr);
       });
   }
+
+  if (window.renderActivityTimeline) {
+      window.renderActivityTimeline();
+  }
 }
+
+window.renderActivityTimeline = async function() {
+    const timelineLogs = document.getElementById('live-timeline-logs');
+    if (!timelineLogs) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/api/activities`);
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        const logs = await res.json();
+        
+        const timelineCount = document.getElementById('live-timeline-count');
+        if (timelineCount) {
+            timelineCount.textContent = `${logs.length} events logged`;
+        }
+        
+        if (logs.length === 0) {
+            timelineLogs.innerHTML = `<div style="color: var(--muted2); text-align: center; padding: 20px;">No recent student activity logs. Waiting for events...</div>`;
+            return;
+        }
+        
+        timelineLogs.innerHTML = '';
+        logs.forEach(log => {
+            const date = new Date(log.timestamp);
+            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            let typeColor = '#cbd5e1'; 
+            let badgeBg = 'rgba(203,213,225,0.1)';
+            let icon = 'ℹ️';
+            
+            switch (log.event_type) {
+                case 'LOGIN':
+                    typeColor = '#60a5fa'; 
+                    badgeBg = 'rgba(96,165,250,0.1)';
+                    icon = '🔑';
+                    break;
+                case 'START_EXAM':
+                    typeColor = '#34d399'; 
+                    badgeBg = 'rgba(52,211,153,0.1)';
+                    icon = '📝';
+                    break;
+                case 'OPEN_QUESTION':
+                    typeColor = '#a78bfa'; 
+                    badgeBg = 'rgba(167,139,250,0.1)';
+                    icon = '📖';
+                    break;
+                case 'RUN_CODE':
+                    typeColor = '#fb923c'; 
+                    badgeBg = 'rgba(251,146,60,0.1)';
+                    icon = '⚙️';
+                    break;
+                case 'SUBMIT_ANSWER':
+                    typeColor = '#facc15'; 
+                    badgeBg = 'rgba(250,204,21,0.1)';
+                    icon = '💾';
+                    break;
+                case 'TAB_WARNING':
+                    typeColor = '#ef4444'; 
+                    badgeBg = 'rgba(239,68,68,0.15)';
+                    icon = '⚠️';
+                    break;
+                case 'LOGOUT':
+                    typeColor = '#94a3b8'; 
+                    badgeBg = 'rgba(148,163,184,0.1)';
+                    icon = '🚪';
+                    break;
+                case 'EXAM_SUBMITTED':
+                    typeColor = '#10b981'; 
+                    badgeBg = 'rgba(16,185,129,0.2)';
+                    icon = '🎓';
+                    break;
+            }
+            
+            const logItem = document.createElement('div');
+            logItem.style.cssText = 'display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 8px; transition: background 0.2s;';
+            logItem.onmouseover = () => logItem.style.background = 'rgba(255,255,255,0.04)';
+            logItem.onmouseout = () => logItem.style.background = 'rgba(255,255,255,0.02)';
+            
+            let detailsHtml = '';
+            if (log.details) {
+                detailsHtml = `<span style="color: var(--muted); font-size: 12px; margin-left: 6px;">(${log.details})</span>`;
+            }
+            
+            logItem.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: ${badgeBg}; color: ${typeColor}; font-size: 14px; flex-shrink: 0;">
+                    ${icon}
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;">
+                        <div>
+                            <strong style="color: #fff; font-family: 'Space Mono', monospace;">${log.roll}</strong>
+                            <span style="display: inline-block; margin: 0 6px; color: rgba(255,255,255,0.15);">|</span>
+                            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: ${badgeBg}; color: ${typeColor}; text-transform: uppercase;">${log.event_type}</span>
+                            ${detailsHtml}
+                        </div>
+                        <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted2);">${timeStr}</span>
+                    </div>
+                </div>
+            `;
+            
+            timelineLogs.appendChild(logItem);
+        });
+    } catch (e) {
+        console.error("Error rendering activity timeline:", e);
+    }
+};
 
 function getSystemDateString() {
     const d = new Date();
@@ -3379,6 +3608,10 @@ document.addEventListener('visibilitychange', async () => {
         tabSwitches++;
         autoSaveProgress();
         await syncProgressToFirebase();
+        
+        if (currentStudent && window.logStudentActivity) {
+            await logStudentActivity(currentStudent.roll, 'TAB_WARNING', `Warning #${tabSwitches}`);
+        }
         
         if (tabSwitches >= 3) {
             alert("Maximum tab-switch limit reached. Your examination has been terminated.");

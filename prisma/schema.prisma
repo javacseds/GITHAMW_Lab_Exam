@@ -42,7 +42,26 @@ model results {
   mobile_number         String? @db.VarChar(50)
   email                 String? @db.VarChar(150)
   exam_permission       String? @default("Allowed") @db.VarChar(50)
+  login_time            String? @db.VarChar(100)
+  login_device          String? @db.VarChar(100)
+  login_browser         String? @db.VarChar(255)
+  login_ip              String? @db.VarChar(100)
+  current_question      Int?    @default(0)
+  current_activity      String? @db.VarChar(255)
+  online_status         String? @default("Offline") @db.VarChar(50)
   created_at            DateTime @default(now())
   updated_at            DateTime @default(now()) @updatedAt
 }
+
+model activity_logs {
+  id         Int      @id @default(autoincrement())
+  roll       String   @db.VarChar(50)
+  event_type String   @db.VarChar(50)
+  details    String?  @db.Text
+  timestamp  DateTime @default(now())
+
+  @@index([roll])
+  @@index([timestamp])
+}
+
 
