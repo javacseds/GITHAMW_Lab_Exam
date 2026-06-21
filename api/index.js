@@ -190,28 +190,34 @@ app.post('/api/results', async (req, res) => {
         if (existing) {
             console.log(`[API] Record exists. Performing Prisma update for roll: ${roll}`);
             
+            // Critical security check: Do not let an ACTIVE or IDLE heartbeat override a SUBMITTED exam status
+            if (existing.status === 'SUBMITTED' && (status === 'ACTIVE' || status === 'IDLE')) {
+                console.log(`[API] Roll ${roll} is already SUBMITTED. Heartbeat update ignored to prevent state demotion.`);
+                return res.json({ success: true, message: 'Exam is already submitted. Heartbeat ignored.' });
+            }
+
             const updateData = {};
-            if (name !== undefined) updateData.name = name;
-            if (branch !== undefined) updateData.branch = branch;
-            if (marks !== undefined) updateData.marks = marks;
-            if (attempts !== undefined) updateData.attempts = attempts;
-            if (status !== undefined) updateData.status = status;
-            if (timestamp !== undefined) updateData.timestamp = timestamp;
-            if (questionDetails !== undefined) updateData.question_details = questionDetails;
-            if (timeTaken !== undefined) updateData.time_taken = timeTaken;
-            if (lastActiveStr !== undefined) updateData.last_active_str = lastActiveStr;
-            if (lastSyncStr !== undefined) updateData.last_sync_str = lastSyncStr;
+            if (name !== undefined && name !== null && name !== '') updateData.name = name;
+            if (branch !== undefined && branch !== null && branch !== '') updateData.branch = branch;
+            if (marks !== undefined && marks !== null) updateData.marks = marks;
+            if (attempts !== undefined && attempts !== null) updateData.attempts = attempts;
+            if (status !== undefined && status !== null && status !== '') updateData.status = status;
+            if (timestamp !== undefined && timestamp !== null && timestamp !== '') updateData.timestamp = timestamp;
+            if (questionDetails !== undefined && questionDetails !== null) updateData.question_details = questionDetails;
+            if (timeTaken !== undefined && timeTaken !== null) updateData.time_taken = timeTaken;
+            if (lastActiveStr !== undefined && lastActiveStr !== null && lastActiveStr !== '') updateData.last_active_str = lastActiveStr;
+            if (lastSyncStr !== undefined && lastSyncStr !== null && lastSyncStr !== '') updateData.last_sync_str = lastSyncStr;
             
             const reqStudentId = req.body.studentId || req.body.student_id;
-            if (reqStudentId !== undefined) updateData.student_id = reqStudentId;
+            if (reqStudentId !== undefined && reqStudentId !== null && reqStudentId !== '') updateData.student_id = reqStudentId;
             
             const reqExamId = req.body.examId || req.body.exam_id;
-            if (reqExamId !== undefined) updateData.exam_id = reqExamId;
+            if (reqExamId !== undefined && reqExamId !== null && reqExamId !== '') updateData.exam_id = reqExamId;
             
             const reqPercentage = req.body.percentage;
-            if (reqPercentage !== undefined) {
+            if (reqPercentage !== undefined && reqPercentage !== null) {
                 updateData.percentage = reqPercentage;
-            } else if (marks !== undefined) {
+            } else if (marks !== undefined && marks !== null) {
                 updateData.percentage = (marks / 50.0) * 100;
             }
 

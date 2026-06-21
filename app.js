@@ -329,9 +329,17 @@ function getStudentQuestions(studentIdx) {
 }
 
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' || !window.location.hostname
-  ? 'http://localhost:3000' 
-  : '';
+function getApiBase() {
+    const savedIp = localStorage.getItem('api_server_ip');
+    if (savedIp) {
+        const cleanIp = savedIp.replace(/^(https?:\/\/)?/, '').trim();
+        return `http://${cleanIp}:3000`;
+    }
+    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' || !window.location.hostname
+      ? 'http://localhost:3000' 
+      : '';
+}
+let API_BASE = getApiBase();
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -1736,10 +1744,19 @@ async function renderAdmin(skipFirebaseFetch = false) {
             } else {
                 statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(239,68,68,0.15);color:#fca5a5;">FAIL</span>`;
             }
-        } else if (isActive) {
-            statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(59,130,246,0.15);color:#60a5fa;box-shadow: 0 0 8px rgba(59,130,246,0.4);">ACTIVE</span>`;
-        } else if (isIdle) {
-            statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(249,115,22,0.15);color:#fb923c;">IDLE</span>`;
+        } else if (res && (res.status === 'ACTIVE' || res.status === 'IDLE')) {
+            const now = Date.now();
+            const lastSync = res.lastSyncStr ? new Date(res.lastSyncStr).getTime() : 0;
+            const diffSeconds = (now - lastSync) / 1000;
+            
+            if (diffSeconds > 45) {
+                // Heartbeat expired -> Offline
+                statusBadge = `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(239,68,68,0.15);color:#fca5a5;"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>OFFLINE</span>`;
+            } else if (res.status === 'ACTIVE') {
+                statusBadge = `<span class="pulse-dot" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>ONLINE</span>`;
+            } else if (res.status === 'IDLE') {
+                statusBadge = `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(249,115,22,0.15);color:#fb923c;"><span style="width:6px;height:6px;border-radius:50%;background:#fb923c;display:inline-block;"></span>IDLE</span>`;
+            }
         }
 
         const authModes = JSON.parse(localStorage.getItem('student_auth_modes') || '{}');
@@ -1907,7 +1924,27 @@ document.getElementById('admin-clear-btn').addEventListener('click', () => {
 });
 
 
-document.getElementById('admin-download-btn').addEventListener('click', () => {
+async function syncLatestResults() {
+    try {
+        const res = await fetch(`${API_BASE}/api/results`);
+        if (res.ok) {
+            const dbResults = await res.json();
+            let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+            results = { ...results, ...dbResults };
+            localStorage.setItem('assessment_results', JSON.stringify(results));
+            return results;
+        }
+    } catch(e) {
+        console.error("Failed to sync latest results from database", e);
+    }
+    return JSON.parse(localStorage.getItem('assessment_results') || '{}');
+}
+
+document.getElementById('admin-download-btn').addEventListener('click', async () => {
+    // Sync latest database records and re-render admin before PDF export
+    await syncLatestResults();
+    await renderAdmin(true);
+
     if (typeof html2pdf === 'undefined') {
         // Fall back to native browser printing if offline
         document.body.classList.add('printing-admin');
@@ -1986,8 +2023,10 @@ document.getElementById('admin-download-btn').addEventListener('click', () => {
     });
 });
 
-document.getElementById('admin-download-csv-btn').addEventListener('click', () => {
-    let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+document.getElementById('admin-download-csv-btn').addEventListener('click', async () => {
+    // Sync latest database records and re-render admin before CSV export
+    let results = await syncLatestResults();
+    await renderAdmin(true);
     
     // Sort students by branch, then by roll number ascending
     let sortedStudents = [...students].sort((a, b) => {
@@ -2315,6 +2354,80 @@ document.getElementById('save-edit-btn').addEventListener('click', () => {
     document.getElementById('edit-student-modal').classList.remove('active');
     renderAdmin();
 });
+
+// --- API SERVER CONNECTION CONFIGURATION ---
+const serverIpInput = document.getElementById('server-ip-input');
+const saveServerIpBtn = document.getElementById('save-server-ip-btn');
+const serverIpStatus = document.getElementById('server-ip-status');
+
+if (serverIpInput) {
+    serverIpInput.value = localStorage.getItem('api_server_ip') || '';
+}
+
+if (saveServerIpBtn) {
+    saveServerIpBtn.addEventListener('click', async () => {
+        const ip = serverIpInput.value.trim();
+        if (ip) {
+            localStorage.setItem('api_server_ip', ip);
+        } else {
+            localStorage.removeItem('api_server_ip');
+        }
+        API_BASE = getApiBase();
+        
+        serverIpStatus.style.display = 'block';
+        serverIpStatus.style.color = 'var(--muted)';
+        serverIpStatus.textContent = 'Testing connection...';
+        
+        try {
+            const res = await fetch(`${API_BASE}/api/results`);
+            if (res.ok) {
+                serverIpStatus.style.color = '#34d399';
+                serverIpStatus.textContent = '✓ Connected successfully to database!';
+            } else {
+                throw new Error("HTTP error " + res.status);
+            }
+        } catch(e) {
+            serverIpStatus.style.color = '#fca5a5';
+            serverIpStatus.textContent = '✗ Connection failed! Check IP/backend server.';
+        }
+    });
+}
+
+// Admin configuration modals
+const configIpBtn = document.getElementById('admin-config-ip-btn');
+const adminIpModal = document.getElementById('admin-ip-modal');
+const closeIpModalBtn = document.getElementById('close-ip-modal-btn');
+const saveAdminIpBtn = document.getElementById('save-admin-ip-btn');
+const adminIpInput = document.getElementById('admin-ip-input');
+
+if (configIpBtn && adminIpModal) {
+    configIpBtn.addEventListener('click', () => {
+        if (adminIpInput) {
+            adminIpInput.value = localStorage.getItem('api_server_ip') || '';
+        }
+        adminIpModal.classList.add('active');
+    });
+}
+
+if (closeIpModalBtn && adminIpModal) {
+    closeIpModalBtn.addEventListener('click', () => {
+        adminIpModal.classList.remove('active');
+    });
+}
+
+if (saveAdminIpBtn && adminIpModal) {
+    saveAdminIpBtn.addEventListener('click', () => {
+        const ip = adminIpInput.value.trim();
+        if (ip) {
+            localStorage.setItem('api_server_ip', ip);
+        } else {
+            localStorage.removeItem('api_server_ip');
+        }
+        API_BASE = getApiBase();
+        adminIpModal.classList.remove('active');
+        renderAdmin();
+    });
+}
 
 // --- CUSTOM KEYBOARD REFRESH BLOCKER ---
 document.addEventListener('keydown', (e) => {
