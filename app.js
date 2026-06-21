@@ -989,6 +989,29 @@ async function attemptLogin() {
           if (liveData.branch) student.branch = liveData.branch;
       }
 
+      // Merge live database progress into local storage to support resuming on new devices
+      let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+      results[roll] = {
+          ...results[roll],
+          roll: liveData.roll,
+          name: liveData.name || student.name,
+          branch: liveData.branch || student.branch,
+          department: liveData.department || student.department,
+          section: liveData.section || student.section,
+          semester: liveData.semester || student.semester,
+          academicYear: liveData.academicYear || liveData.academic_year || student.academic_year,
+          mobileNumber: liveData.mobileNumber || liveData.mobile_number || student.mobile_number,
+          email: liveData.email || student.email,
+          examPermission: permission,
+          status: liveData.status,
+          marks: liveData.marks || 0,
+          attempts: liveData.attempts || 0,
+          tabWarnings: liveData.tabWarnings !== undefined ? liveData.tabWarnings : 0,
+          examStartTime: liveData.examStartTime,
+          questionDetails: liveData.questionDetails || []
+      };
+      localStorage.setItem('assessment_results', JSON.stringify(results));
+
       loginError.style.display = 'none';
       loginBtn.textContent = originalBtnText;
       loginBtn.disabled = false;
@@ -2112,6 +2135,32 @@ window.allowRetest = async function(roll) {
   }
 };
 
+window.resetStudentSession = async function(roll) {
+  if (confirm("Reset active session for student " + roll + "? This will clear their active login state and allow them to log back in to resume their exam progress.")) {
+      let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+      if (results[roll]) {
+          results[roll].status = "Not Started";
+      }
+      localStorage.setItem('assessment_results', JSON.stringify(results));
+      
+      try {
+          await fetch(`${API_BASE}/api/results`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  roll: roll,
+                  status: "Not Started"
+              })
+          });
+          console.log(`Successfully reset session status for ${roll}`);
+      } catch (e) {
+          console.error("Failed to reset session in database:", e);
+      }
+      
+      renderAdmin();
+  }
+};
+
 let chartInstance1 = null;
 let chartInstance2 = null;
 
@@ -2556,7 +2605,8 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
           <td style="padding:10px 10px;color:var(--muted); font-size:11px; white-space:nowrap;">${isSub && !isAbs ? formatTime(res.timestamp) : '-'}</td>
           <td style="padding:10px 10px; white-space:nowrap;">
             ${!isSub ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--red);color:var(--red);margin-right:2px;" onclick="markAbsent('${s.roll}')">Absent</button>` : ''}
-            ${isSub ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="allowRetest('${s.roll}')">Retest</button>` : ''}
+            ${(isActive || isIdle) ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="resetStudentSession('${s.roll}')">Reset Session</button>` : ''}
+            ${(isSub || isAbs) ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="allowRetest('${s.roll}')">Retest</button>` : ''}
             ${isSub && !isAbs ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--blue-light);color:var(--blue-light);margin-right:2px;" onclick="viewStudentReport('${s.roll}')">Report</button>` : ''}
             ${isSub && !isAbs ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:#10b981;color:#10b981;margin-right:2px;" onclick="emailStudentReport('${s.roll}')">Email</button>` : ''}
             <button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--muted);color:var(--muted);margin-right:2px;" onclick="openEditStudent('${s.roll}')">Edit</button>
