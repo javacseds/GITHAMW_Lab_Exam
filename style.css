@@ -110,10 +110,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--text);m
 .q-tab{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.06em;padding:12px 18px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:color .18s,border-color .18s;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;}
 .q-tab:hover{color:var(--text);}
 .q-tab.active{color:var(--accent2);border-bottom-color:var(--accent);}
-.q-tab.opened{color:#f87171 !important;}
-.q-tab.opened.active{color:#f87171 !important;border-bottom-color:#f87171 !important;}
+.q-tab.opened{color:var(--muted) !important;}
+.q-tab.opened.active{color:var(--accent2) !important;border-bottom-color:var(--accent) !important;}
 .q-tab.passed{background:#16a34a !important; color:#ffffff !important; border-radius:4px; margin: 4px;}
 .q-tab.passed.active{background:#15803d !important; color:#ffffff !important; border-bottom-color:transparent !important; border-radius:4px; margin: 4px;}
+.q-tab.failed{background:#dc2626 !important; color:#ffffff !important; border-radius:4px; margin: 4px;}
+.q-tab.failed.active{background:#b91c1c !important; color:#ffffff !important; border-bottom-color:transparent !important; border-radius:4px; margin: 4px;}
 
 /* ── MAIN SPLIT LAYOUT ──────────────────────────── */
 .exam-body{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0;}

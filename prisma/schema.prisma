@@ -14,19 +14,26 @@ model otps {
 }
 
 model results {
-  roll             String  @id @db.VarChar(50)
-  name             String? @db.VarChar(100)
-  branch           String? @db.VarChar(100)
-  marks            Int?    @default(0)
-  attempts         Int?    @default(0)
-  status           String? @default("ACTIVE") @db.VarChar(50)
-  timestamp        String? @db.VarChar(100)
-  question_details Json?
-  time_taken       Int?    @default(0)
-  last_active_str  String? @db.VarChar(100)
-  last_sync_str    String? @db.VarChar(100)
-  student_id       String? @db.VarChar(100)
-  exam_id          String? @db.VarChar(100)
-  percentage       Float?
+  roll                  String  @id @db.VarChar(50)
+  name                  String? @db.VarChar(100)
+  branch                String? @db.VarChar(100)
+  marks                 Int?    @default(0)
+  attempts              Int?    @default(0)
+  status                String? @default("ACTIVE") @db.VarChar(50)
+  timestamp             String? @db.VarChar(100)
+  question_details      Json?
+  time_taken            Int?    @default(0)
+  last_active_str       String? @db.VarChar(100)
+  last_sync_str         String? @db.VarChar(100)
+  student_id            String? @db.VarChar(100)
+  exam_id               String? @db.VarChar(100)
+  percentage            Float?
+  correct_count         Int?    @default(0)
+  wrong_count           Int?    @default(0)
+  result_classification String? @db.VarChar(50)
+  tab_warnings          Int?    @default(0)
+  exam_start_time       String? @db.VarChar(100)
+  exam_end_time         String? @db.VarChar(100)
+  submission_type       String? @db.VarChar(50)
 }
 

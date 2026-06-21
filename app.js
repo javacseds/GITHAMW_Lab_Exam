@@ -349,6 +349,9 @@ let codes = ['', '', '', '', '']; // saved code per question
 let stdins = ['', '', '', '', ''];
 let attempted = [false, false, false, false, false]; // has user typed code?
 let passed = [false, false, false, false, false];
+let questionSubmitted = [false, false, false, false, false];
+let examStartTime = null;
+let tabSwitches = 0;
 
 
 const studentMap = {};
@@ -671,20 +674,35 @@ async function startExam(student) {
   stdins  = ['', '', '', '', ''];
   attempted = [false, false, false, false, false];
   passed = [false, false, false, false, false];
+  questionSubmitted = [false, false, false, false, false];
   currentTab = 0;
 
   // Restore previous progress if it exists in local storage
   let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
   if (results[student.roll]) {
       const res = results[student.roll];
+      if (res.examStartTime) {
+          examStartTime = res.examStartTime;
+      } else {
+          examStartTime = new Date().toISOString();
+      }
+      if (res.tabWarnings !== undefined) {
+          tabSwitches = res.tabWarnings;
+      } else {
+          tabSwitches = 0;
+      }
       if (res.questionDetails && res.questionDetails.length > 0) {
           res.questionDetails.forEach((qd, idx) => {
               codes[idx] = qd.code || '';
               stdins[idx] = qd.stdin || '';
               attempted[idx] = qd.attempted || false;
               passed[idx] = qd.passed || false;
+              questionSubmitted[idx] = qd.submitted || false;
           });
       }
+  } else {
+      examStartTime = new Date().toISOString();
+      tabSwitches = 0;
   }
 
   document.getElementById('header-student').textContent = `${student.name} · ${student.roll}`;
@@ -708,6 +726,7 @@ async function startExam(student) {
 
   startTimer();
   updateProgress();
+  toggleEditorVisibility();
 
   if (window.heartbeatInterval) clearInterval(window.heartbeatInterval);
   window.heartbeatInterval = setInterval(syncStudentHeartbeat, 30000); // Heartbeat every 30 seconds
@@ -725,7 +744,13 @@ function buildNavTabs() {
   assignedQIdxs.forEach((qIdx, i) => {
     const q = questions[qIdx];
     const btn = document.createElement('button');
-    btn.className = 'q-tab' + (i === 0 ? ' active' : '');
+    let classes = 'q-tab';
+    if (i === 0) classes += ' active';
+    if (questionSubmitted[i]) {
+        if (passed[i]) classes += ' passed';
+        else classes += ' failed';
+    }
+    btn.className = classes;
     btn.id = `tab-${i}`;
     btn.textContent = `Q${i+1}: ${q.title.length > 22 ? q.title.slice(0,20)+'…' : q.title}`;
     btn.addEventListener('click', () => switchTab(i));
@@ -745,7 +770,7 @@ function switchTab(i) {
   currentTab = i;
   let newTab = document.getElementById(`tab-${i}`);
   newTab.classList.add('active');
-  if (!passed[i]) newTab.classList.add('opened');
+  if (!questionSubmitted[i]) newTab.classList.add('opened');
 
   renderQuestion(i);
   // restore code/stdin
@@ -768,20 +793,25 @@ function toggleEditorVisibility() {
     const editorToolbar = document.querySelector('.editor-toolbar');
     let overlay = document.getElementById('completed-overlay');
 
-    if (passed[currentTab]) {
+    if (questionSubmitted[currentTab]) {
         editorArea.style.display = 'none';
         stdinWrap.style.display = 'none';
         outputWrap.style.display = 'none';
         editorToolbar.style.display = 'none';
         
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'completed-overlay';
-            overlay.style.cssText = 'display:flex;height:100%;align-items:center;justify-content:center;flex-direction:column;background:var(--navy3);flex:1;border-radius:0 0 12px 0;';
-            overlay.innerHTML = '<span style="font-size:56px;color:#4ade80;margin-bottom:16px;">✓</span><h2 style="font-size:24px;color:#fff;margin-bottom:10px;">Question Completed</h2><p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.6;">10 Marks Awarded.<br>The code for this question is now securely locked.</p>';
-            document.querySelector('.editor-panel').insertBefore(overlay, document.querySelector('.submit-section'));
+        if (overlay) {
+            overlay.remove();
         }
-        overlay.style.display = 'flex';
+        
+        overlay = document.createElement('div');
+        overlay.id = 'completed-overlay';
+        overlay.style.cssText = 'display:flex;height:100%;align-items:center;justify-content:center;flex-direction:column;background:var(--navy3);flex:1;border-radius:0 0 12px 0;';
+        if (passed[currentTab]) {
+            overlay.innerHTML = '<span style="font-size:56px;color:#4ade80;margin-bottom:16px;">✓</span><h2 style="font-size:24px;color:#fff;margin-bottom:10px;">Question Submitted</h2><p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.6;">10 Marks Awarded.<br>The code for this question is now locked.</p>';
+        } else {
+            overlay.innerHTML = '<span style="font-size:56px;color:#ef4444;margin-bottom:16px;">❌</span><h2 style="font-size:24px;color:#fff;margin-bottom:10px;">Question Submitted</h2><p style="color:var(--muted);font-size:14px;text-align:center;line-height:1.6;">0 Marks Awarded (Incorrect Output).<br>The code for this question is now locked.</p>';
+        }
+        document.querySelector('.editor-panel').insertBefore(overlay, document.querySelector('.submit-section'));
     } else {
         editorArea.style.display = 'flex';
         stdinWrap.style.display = 'block';
@@ -818,7 +848,14 @@ function renderQuestion(tabIdx) {
       </div>
     </div>`).join('');
 
-    let marksBadge = passed[tabIdx] ? '<span class="q-marks" style="color:#10b981;font-weight:700;">✓ 10 Marks Awarded</span>' : '<span class="q-marks">10 Marks</span>';
+    let marksBadge = '<span class="q-marks">10 Marks</span>';
+    if (questionSubmitted[tabIdx]) {
+        if (passed[tabIdx]) {
+            marksBadge = '<span class="q-marks" style="color:#10b981;font-weight:700;">✓ 10 Marks Awarded</span>';
+        } else {
+            marksBadge = '<span class="q-marks" style="color:var(--red);font-weight:700;">✗ 0 Marks (Incorrect)</span>';
+        }
+    }
   panel.innerHTML = `
     <div class="q-card-header">
       <span class="q-no-badge">Q${tabIdx+1} of 5 &nbsp;·&nbsp; Problem No. ${q.no}</span>
@@ -881,85 +918,131 @@ function updateTimerDisplay() {
 function pad(n) { return String(n).padStart(2, '0'); }
 
 
-async function triggerTimeout() {
-  saveCurrent();
-  examScreen.style.display    = 'none';
-  
-  // Grade before timeout screen
-  document.getElementById('loader').classList.remove('hidden');
-  document.querySelector('.loader-text').textContent = "Auto-Grading in Progress...";
-  
-  let earnedMarks = 0;
-  let questionDetails = [];
-  for (let i = 0; i < 5; i++) {
-        let codeToTest = codes[i].replace(/\t/g, '    ').trim();
+async function terminateExam(type) {
+    if (timerInterval) clearInterval(timerInterval);
+    if (window.heartbeatInterval) clearInterval(window.heartbeatInterval);
+    if (window.firebaseSyncInterval) clearInterval(window.firebaseSyncInterval);
+
+    // Show grading loader
+    document.getElementById('loader').classList.remove('hidden');
+    document.querySelector('.loader-text').textContent = "Submitting Assessment...";
+
+    saveCurrent();
+
+    let earnedMarks = 0;
+    let questionDetails = [];
+    let correctCount = 0;
+    let wrongCount = 0;
+
+    for (let i = 0; i < 5; i++) {
+        let codeToTest = codes[i] ? codes[i].replace(/\t/g, '    ').trim() : '';
         let isAttempted = codeToTest.length > 0;
         let qIdx = assignedQIdxs[i];
         let q = questions[qIdx];
-        
-        let allPassed = passed[i];
-        if (!allPassed && isAttempted && q.samples && q.samples.length > 0) {
-            allPassed = true;
-            window.grading_code = codeToTest;
-            for (let s of q.samples) {
-                let sampleInput = s.input || "";
-                let expectedOutput = s.output.trim();
-                window.grading_stdin = sampleInput.split('\n');
-                let grading_script = `
-import sys, io, builtins
-from js import window
-builtins._stdin_tokens = []
-def _grade_run():
-    old_stdout = sys.stdout
-    old_stdin = sys.stdin
-    captured_out = io.StringIO()
-    sys.stdout = captured_out
-    try:
-        sys.stdin = io.StringIO("\\n".join(list(window.grading_stdin)) + "\\n")
-        exec(window.grading_code, {})
-        return captured_out.getvalue()
-    except Exception:
-        return ""
-    finally:
-        sys.stdout = old_stdout
-        sys.stdin = old_stdin
-_grade_run()
-`;
-                try {
-                    let actualOutput = await pyodideInstance.runPythonAsync(grading_script);
-                    if (actualOutput) actualOutput = actualOutput.trim();
-                    else actualOutput = "";
-                    
-                    if (!compareOutput(actualOutput, expectedOutput, q.title)) {
-                        allPassed = false;
-                        break;
-                    }
-                } catch(e) {
-                    allPassed = false;
-                    break;
-                }
-            }
+
+        let isPassed = passed[i] && questionSubmitted[i];
+        if (isPassed) {
+            earnedMarks += 10;
+            correctCount++;
+        } else if (questionSubmitted[i]) {
+            wrongCount++;
         }
-        if (allPassed && isAttempted) earnedMarks += 10;
-        
+
         questionDetails.push({
             no: i + 1,
             qId: q.no,
             title: q.title,
             attempted: isAttempted,
-            passed: allPassed && isAttempted,
-            marks: (allPassed && isAttempted) ? 10 : 0,
-            code: codeToTest
+            passed: isPassed,
+            submitted: questionSubmitted[i],
+            marks: isPassed ? 10 : 0,
+            code: codeToTest,
+            stdin: stdins[i] || ''
         });
-  }
-  
-  let timeTaken = EXAM_DURATION - secondsLeft;
-  await saveResultToLocal(currentStudent.roll, attempted.filter(Boolean).length, earnedMarks, "SUBMITTED", questionDetails, timeTaken);
+    }
 
-  document.getElementById('loader').classList.add('hidden');
-  timeoutScreen.style.display = 'flex';
-  document.getElementById('timeout-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
-  document.getElementById('timeout-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#4ade80;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
+    let timeTaken = EXAM_DURATION - secondsLeft;
+    let resultClassification = "Fail";
+    if (earnedMarks >= 50) resultClassification = "Excellent";
+    else if (earnedMarks >= 40) resultClassification = "Good";
+    else if (earnedMarks >= 30) resultClassification = "Pass";
+    else resultClassification = "Fail";
+
+    const examEndTime = new Date().toISOString();
+
+    const finalResult = {
+        marks: earnedMarks,
+        attempts: attempted.filter(Boolean).length,
+        status: "SUBMITTED",
+        timestamp: new Date().toISOString(),
+        questionDetails: questionDetails,
+        timeTaken: timeTaken,
+        studentId: currentStudent.roll,
+        examId: 'PYTHON_LAB_2026',
+        percentage: (earnedMarks / 50) * 100,
+        correctCount: correctCount,
+        wrongCount: wrongCount,
+        resultClassification: resultClassification,
+        tabWarnings: tabSwitches,
+        examStartTime: examStartTime,
+        examEndTime: examEndTime,
+        submissionType: type
+    };
+
+    // Save locally
+    let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+    results[currentStudent.roll] = { ...(results[currentStudent.roll] || {}), ...finalResult };
+    localStorage.setItem('assessment_results', JSON.stringify(results));
+
+    // Send payload to backend
+    try {
+        await fetch(`${API_BASE}/api/results`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                roll: currentStudent.roll,
+                name: currentStudent.name,
+                branch: currentStudent.branch,
+                ...finalResult
+            })
+        });
+        console.log("Successfully saved final result to database via API.");
+    } catch (e) {
+        console.error("Failed to save final result to database via API:", e);
+    }
+
+    document.getElementById('loader').classList.add('hidden');
+    examScreen.style.display = 'none';
+
+    if (type === 'TAB_SWITCH_LIMIT') {
+        submittedScreen.style.display = 'flex';
+        const iconEl = submittedScreen.querySelector('.end-icon');
+        const titleEl = submittedScreen.querySelector('h2');
+        const descEl = submittedScreen.querySelector('p');
+        if (iconEl) iconEl.textContent = '⚠️';
+        if (titleEl) titleEl.textContent = 'Exam Terminated!';
+        if (descEl) descEl.innerHTML = 'Maximum tab-switch limit reached. Your examination has been automatically submitted and terminated.';
+        document.getElementById('submit-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
+        document.getElementById('submit-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#ef4444;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
+    } else if (type === 'TIMER_EXPIRED') {
+        timeoutScreen.style.display = 'flex';
+        document.getElementById('timeout-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
+        document.getElementById('timeout-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#4ade80;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
+    } else { // MANUAL
+        submittedScreen.style.display = 'flex';
+        const iconEl = submittedScreen.querySelector('.end-icon');
+        const titleEl = submittedScreen.querySelector('h2');
+        const descEl = submittedScreen.querySelector('p');
+        if (iconEl) iconEl.textContent = '✅';
+        if (titleEl) titleEl.textContent = 'Exam Submitted!';
+        if (descEl) descEl.innerHTML = 'Your exam has been submitted successfully. Please wait for the invigilator\'s instructions.';
+        document.getElementById('submit-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
+        document.getElementById('submit-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#4ade80;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
+    }
+}
+
+async function triggerTimeout() {
+    await terminateExam('TIMER_EXPIRED');
 }
 
 
@@ -1210,27 +1293,6 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     // Automatically convert any tabs to 4 spaces to prevent TabError
     code = code.replace(/\t/g, '    ');
 
-    if (!code.includes('input') && !code.includes('sys.stdin')) {
-        appendToConsole("ERROR: Logic Check Failed.\nYou must use input() to dynamically read the hidden test cases.\nHardcoding variable values is not permitted.", true);
-        const os = document.getElementById('output-status');
-        os.textContent = 'LOGIC ERROR';
-        os.className = 'output-status err';
-        os.style.display = 'inline-block';
-        
-        let tabEl = document.getElementById(`tab-${currentTab}`);
-        passed[currentTab] = false;
-        tabEl.classList.remove('passed');
-        tabEl.classList.add('opened');
-        let qMarks = document.querySelector('.q-marks');
-        if (qMarks) {
-            qMarks.innerHTML = '10 Marks';
-            qMarks.style.color = 'var(--muted2)';
-            qMarks.style.fontWeight = 'normal';
-        }
-        updateProgress();
-        return;
-    }
-
     const runBtn = document.getElementById('run-btn');
     const spinner = document.getElementById('run-spinner');
     const oc = document.getElementById('output-console');
@@ -1245,8 +1307,6 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     // Set up standard input buffer from the textarea
     let rawInput = document.getElementById('stdin-input').value;
     window.stdinLines = rawInput ? rawInput.split('\n') : [];
-
-    let hasError = false;
 
     try {
         await pyodideInstance.runPythonAsync(`
@@ -1265,7 +1325,6 @@ sys.stdin = io.StringIO("\\n".join(list(window.stdinLines)) + "\\n")
         os.textContent = 'OK';
         os.className = 'output-status ok';
     } catch (err) {
-        hasError = true;
         let errorHeader = "❌ SYNTAX / RUNTIME ERROR:";
         if (err.message) {
             const match = err.message.match(/line\s+(\d+)/i);
@@ -1287,14 +1346,49 @@ sys.stdin = io.StringIO("\\n".join(list(window.stdinLines)) + "\\n")
         runBtn.disabled = false;
         spinner.style.display = 'none';
     }
+});
+
+document.getElementById('submit-answer-btn').addEventListener('click', async () => {
+    saveCurrent();
+    let code = editor.getValue();
+    if (!code.trim()) {
+        alert("The editor is empty. Please write code before submitting.");
+        return;
+    }
+    
+    if (!confirm("Are you sure you want to submit your answer for this question? This will lock your answer permanently.")) {
+        return;
+    }
+    
+    // Automatically convert any tabs to 4 spaces to prevent TabError
+    code = code.replace(/\t/g, '    ');
+
+    const submitBtn = document.getElementById('submit-answer-btn');
+    const spinner = document.getElementById('run-spinner');
+    const oc = document.getElementById('output-console');
+    const os = document.getElementById('output-status');
+
+    submitBtn.disabled = true;
+    spinner.style.display = 'inline-block';
+    oc.textContent = '// Submitting and Grading…';
+    oc.classList.remove('err-text');
+    os.style.display = 'none';
 
     let qIdx = assignedQIdxs[currentTab];
     let q = questions[qIdx];
     let allPassed = true;
 
-    if (!hasError && q.samples && q.samples.length > 0) {
+    // Hardcoding/Logic check
+    if (!code.includes('input') && !code.includes('sys.stdin')) {
+        allPassed = false;
+        appendToConsole("ERROR: Logic Check Failed.\nYou must use input() to dynamically read the hidden test cases.\nHardcoding variable values is not permitted.", true);
+        os.textContent = 'LOGIC ERROR';
+        os.className = 'output-status err';
+        os.style.display = 'inline-block';
+    } else {
         window.grading_code = code;
-        for (let s of q.samples) {
+        for (let idx = 0; idx < q.samples.length; idx++) {
+            let s = q.samples[idx];
             let sampleInput = s.input || "";
             let expectedOutput = s.output.trim();
             window.grading_stdin = sampleInput.split('\n');
@@ -1323,7 +1417,7 @@ _grade_run()
                 
                 if (!compareOutput(actualOutput, expectedOutput, q.title)) {
                     allPassed = false;
-                    appendToConsole(`❌ LOGIC CHECK FAILED:\nInput:\n${sampleInput}\nExpected Output:\n${expectedOutput}\nActual Output:\n${actualOutput}\n`, true);
+                    appendToConsole(`❌ TEST CASE ${idx + 1} FAILED:\nInput:\n${sampleInput}\nExpected Output:\n${expectedOutput}\nActual Output:\n${actualOutput}\n`, true);
                     break;
                 }
             } catch(e) {
@@ -1335,39 +1429,29 @@ _grade_run()
                         lineNumText = ` (at Line ${match[1]})`;
                     }
                 }
-                appendToConsole(`❌ LOGIC CHECK FAILED (Runtime Error on Test Case)${lineNumText}:\nInput:\n${sampleInput}\nError:\n${e.message}\n`, true);
+                appendToConsole(`❌ TEST CASE ${idx + 1} FAILED (Runtime Error)${lineNumText}:\nInput:\n${sampleInput}\nError:\n${e.message}\n`, true);
                 break;
             }
         }
-    } else {
-        allPassed = false;
     }
 
-    let tabEl = document.getElementById(`tab-${currentTab}`);
-    if (allPassed) {
-        passed[currentTab] = true;
-        tabEl.classList.remove('opened');
-        tabEl.classList.add('passed');
-        let qMarks = document.querySelector('.q-marks');
-        if (qMarks) {
-            qMarks.innerHTML = '✓ 10 Marks Awarded';
-            qMarks.style.color = '#10b981';
-            qMarks.style.fontWeight = '700';
-        }
-        toggleEditorVisibility();
-    } else {
-        passed[currentTab] = false;
-        tabEl.classList.remove('passed');
-        tabEl.classList.add('opened');
-        let qMarks = document.querySelector('.q-marks');
-        if (qMarks) {
-            qMarks.innerHTML = '10 Marks';
-            qMarks.style.color = 'var(--muted2)';
-            qMarks.style.fontWeight = 'normal';
-        }
-    }
+    submitBtn.disabled = false;
+    spinner.style.display = 'none';
+
+    passed[currentTab] = allPassed;
+    questionSubmitted[currentTab] = true;
+
+    // Refresh UI
+    buildNavTabs();
+    toggleEditorVisibility();
     updateProgress();
-    syncProgressToFirebase();
+    
+    // Save progress
+    autoSaveProgress();
+    await syncProgressToFirebase();
+
+    // Dynamically update the Marks header inside the left question description panel too!
+    renderQuestion(currentTab);
 });
 
 document.getElementById('clear-btn').addEventListener('click', () => {
@@ -1402,89 +1486,8 @@ document.getElementById('close-modal-btn').addEventListener('click', () => {
 
 
 document.getElementById('confirm-submit-btn').addEventListener('click', async () => {
-    clearInterval(timerInterval);
     document.getElementById('submit-modal').classList.remove('active');
-    
-    // Show grading loader
-    document.getElementById('loader').classList.remove('hidden');
-    document.querySelector('.loader-text').textContent = "Auto-Grading in Progress...";
-    
-    saveCurrent();
-    
-    // Auto Grade
-    let earnedMarks = 0;
-    let questionDetails = [];
-    for (let i = 0; i < 5; i++) {
-        let codeToTest = codes[i].replace(/\t/g, '    ').trim();
-        let isAttempted = codeToTest.length > 0;
-        let qIdx = assignedQIdxs[i];
-        let q = questions[qIdx];
-        
-        let allPassed = passed[i];
-        if (!allPassed && isAttempted && q.samples && q.samples.length > 0) {
-            allPassed = true;
-            window.grading_code = codeToTest;
-            for (let s of q.samples) {
-                let sampleInput = s.input || "";
-                let expectedOutput = s.output.trim();
-                window.grading_stdin = sampleInput.split('\n');
-                let grading_script = `
-import sys, io, builtins
-from js import window
-builtins._stdin_tokens = []
-def _grade_run():
-    old_stdout = sys.stdout
-    old_stdin = sys.stdin
-    captured_out = io.StringIO()
-    sys.stdout = captured_out
-    try:
-        sys.stdin = io.StringIO("\\n".join(list(window.grading_stdin)) + "\\n")
-        exec(window.grading_code, {})
-        return captured_out.getvalue()
-    except Exception:
-        return ""
-    finally:
-        sys.stdout = old_stdout
-        sys.stdin = old_stdin
-_grade_run()
-`;
-                try {
-                    let actualOutput = await pyodideInstance.runPythonAsync(grading_script);
-                    if (actualOutput) actualOutput = actualOutput.trim();
-                    else actualOutput = "";
-                    
-                    if (!compareOutput(actualOutput, expectedOutput, q.title)) {
-                        allPassed = false;
-                        break;
-                    }
-                } catch(e) {
-                    allPassed = false;
-                    break;
-                }
-            }
-        }
-        if (allPassed && isAttempted) earnedMarks += 10;
-        
-        questionDetails.push({
-            no: i + 1,
-            qId: q.no,
-            title: q.title,
-            attempted: isAttempted,
-            passed: allPassed && isAttempted,
-            marks: (allPassed && isAttempted) ? 10 : 0,
-            code: codeToTest
-        });
-    }
-    
-    let timeTaken = EXAM_DURATION - secondsLeft;
-    await saveResultToLocal(currentStudent.roll, attempted.filter(Boolean).length, earnedMarks, "SUBMITTED", questionDetails, timeTaken);
-
-    document.getElementById('loader').classList.add('hidden');
-    
-    document.getElementById('exam-screen').style.display = 'none';
-    document.getElementById('submitted-screen').style.display = 'flex';
-    document.getElementById('submit-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
-    document.getElementById('submit-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#4ade80;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
+    await terminateExam('MANUAL');
 });
 
 
@@ -1634,6 +1637,7 @@ async function renderAdmin(skipFirebaseFetch = false) {
   let branchStats = {};
   let totalExcellent = 0;
   let totalGood = 0;
+  let totalPass = 0;
   let totalFail = 0;
   let totalAbsent = 0;
   
@@ -1650,8 +1654,9 @@ async function renderAdmin(skipFirebaseFetch = false) {
       } else {
          branchStats[s.branch].submitted++;
          branchStats[s.branch].totalMarks += results[s.roll].marks;
-         if (results[s.roll].marks >= 40) totalExcellent++;
-         else if (results[s.roll].marks >= 30) totalGood++;
+         if (results[s.roll].marks === 50) totalExcellent++;
+         else if (results[s.roll].marks >= 40) totalGood++;
+         else if (results[s.roll].marks >= 30) totalPass++;
          else totalFail++;
       }
     }
@@ -1719,7 +1724,7 @@ async function renderAdmin(skipFirebaseFetch = false) {
     if (chartInstance2) chartInstance2.destroy();
     chartInstance2 = new Chart(ctx2, {
         type: 'doughnut',
-        data: { labels: ['Excellent', 'Good', 'Fail', 'Absent', 'Pending'], datasets: [{ data: [totalExcellent, totalGood, totalFail, totalAbsent, students.length - (totalExcellent+totalGood+totalFail+totalAbsent)], backgroundColor: ['#eab308', '#10b981', '#ef4444', '#8b5cf6', '#374151'], borderWidth: 0 }] },
+        data: { labels: ['Excellent', 'Good', 'Pass', 'Fail', 'Absent', 'Pending'], datasets: [{ data: [totalExcellent, totalGood, totalPass, totalFail, totalAbsent, students.length - (totalExcellent+totalGood+totalPass+totalFail+totalAbsent)], backgroundColor: ['#eab308', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#374151'], borderWidth: 0 }] },
         options: { plugins: { legend: { position: 'right', labels: { color: '#ccc' } } }, responsive: true, maintainAspectRatio: false }
     });
   }, 100);
@@ -1765,10 +1770,12 @@ async function renderAdmin(skipFirebaseFetch = false) {
         if (isAbs) {
             statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(139,92,246,0.15);color:#a78bfa;">ABSENT</span>`;
         } else if (isSub) {
-            if (res.marks >= 40) {
+            if (res.marks === 50) {
                 statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(234,179,8,0.15);color:#fde047;">EXCELLENT</span>`;
+            } else if (res.marks >= 40) {
+                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(59,130,246,0.15);color:#60a5fa;">GOOD</span>`;
             } else if (res.marks >= 30) {
-                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;">GOOD</span>`;
+                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;">PASS</span>`;
             } else {
                 statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(239,68,68,0.15);color:#fca5a5;">FAIL</span>`;
             }
@@ -1831,8 +1838,9 @@ window.viewStudentReport = function(roll) {
     let resultText = "Pending";
     let resultColor = "#666";
     if (res && res.status !== "ABSENT") {
-        if (res.marks >= 40) { resultText = "EXCELLENT"; resultColor = "#d97706"; }
-        else if (res.marks >= 30) { resultText = "GOOD"; resultColor = "#059669"; }
+        if (res.marks === 50) { resultText = "EXCELLENT"; resultColor = "#d97706"; }
+        else if (res.marks >= 40) { resultText = "GOOD"; resultColor = "#2563eb"; }
+        else if (res.marks >= 30) { resultText = "PASS"; resultColor = "#059669"; }
         else { resultText = "FAIL"; resultColor = "#dc2626"; }
     } else if (res && res.status === "ABSENT") {
         resultText = "ABSENT"; resultColor = "#7c3aed";
@@ -2085,8 +2093,9 @@ document.getElementById('admin-download-csv-btn').addEventListener('click', asyn
             statusText = 'ABSENT';
         } else if (isSub) {
             statusText = 'SUBMITTED';
-            if (res.marks >= 40) statusText += ' (EXCELLENT)';
-            else if (res.marks >= 30) statusText += ' (GOOD)';
+            if (res.marks === 50) statusText += ' (EXCELLENT)';
+            else if (res.marks >= 40) statusText += ' (GOOD)';
+            else if (res.marks >= 30) statusText += ' (PASS)';
             else statusText += ' (FAIL)';
             
             marksText = res.marks + ' / 50';
@@ -2199,15 +2208,19 @@ document.getElementById('exam-screen').addEventListener('contextmenu', e => e.pr
 
 
 // --- STRICT PROCTORING ---
-let tabSwitches = 0;
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
     if (document.hidden && document.getElementById('exam-screen').style.display === 'flex') {
         tabSwitches++;
+        autoSaveProgress();
+        await syncProgressToFirebase();
+        
         if (tabSwitches >= 3) {
-            alert("STRIKE 3: You have switched tabs 3 times. Your exam is now being forcibly submitted.");
-            document.getElementById('confirm-submit-btn').click();
-        } else {
-            alert(`WARNING: Do not switch tabs or windows! Strike ${tabSwitches} of 3.\nIf you reach 3 strikes, your exam will automatically submit!`);
+            alert("Maximum tab-switch limit reached. Your examination has been terminated.");
+            await terminateExam('TAB_SWITCH_LIMIT');
+        } else if (tabSwitches === 1) {
+            alert("Warning 1 of 3: Please do not switch browser tabs during the examination.");
+        } else if (tabSwitches === 2) {
+            alert("Warning 2 of 3: One more tab switch will automatically end your examination.");
         }
     }
 });

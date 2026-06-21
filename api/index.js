@@ -171,7 +171,9 @@ app.post('/api/results', async (req, res) => {
 
     const { 
         roll, name, branch, marks, attempts, status, 
-        timestamp, questionDetails, timeTaken, lastActiveStr, lastSyncStr
+        timestamp, questionDetails, timeTaken, lastActiveStr, lastSyncStr,
+        correctCount, wrongCount, resultClassification, tabWarnings,
+        examStartTime, examEndTime, submissionType
     } = req.body;
 
     if (!roll) {
@@ -207,6 +209,13 @@ app.post('/api/results', async (req, res) => {
             if (timeTaken !== undefined && timeTaken !== null) updateData.time_taken = timeTaken;
             if (lastActiveStr !== undefined && lastActiveStr !== null && lastActiveStr !== '') updateData.last_active_str = lastActiveStr;
             if (lastSyncStr !== undefined && lastSyncStr !== null && lastSyncStr !== '') updateData.last_sync_str = lastSyncStr;
+            if (correctCount !== undefined && correctCount !== null) updateData.correct_count = correctCount;
+            if (wrongCount !== undefined && wrongCount !== null) updateData.wrong_count = wrongCount;
+            if (resultClassification !== undefined && resultClassification !== null && resultClassification !== '') updateData.result_classification = resultClassification;
+            if (tabWarnings !== undefined && tabWarnings !== null) updateData.tab_warnings = tabWarnings;
+            if (examStartTime !== undefined && examStartTime !== null && examStartTime !== '') updateData.exam_start_time = examStartTime;
+            if (examEndTime !== undefined && examEndTime !== null && examEndTime !== '') updateData.exam_end_time = examEndTime;
+            if (submissionType !== undefined && submissionType !== null && submissionType !== '') updateData.submission_type = submissionType;
             
             const reqStudentId = req.body.studentId || req.body.student_id;
             if (reqStudentId !== undefined && reqStudentId !== null && reqStudentId !== '') updateData.student_id = reqStudentId;
@@ -245,7 +254,14 @@ app.post('/api/results', async (req, res) => {
                 last_sync_str: lastSyncStr !== undefined ? lastSyncStr : null,
                 student_id: (req.body.studentId || req.body.student_id) || roll,
                 exam_id: (req.body.examId || req.body.exam_id) || 'PYTHON_LAB_2026',
-                percentage: req.body.percentage !== undefined ? req.body.percentage : (marks !== undefined ? (marks / 50.0) * 100 : 0)
+                percentage: req.body.percentage !== undefined ? req.body.percentage : (marks !== undefined ? (marks / 50.0) * 100 : 0),
+                correct_count: correctCount !== undefined ? correctCount : 0,
+                wrong_count: wrongCount !== undefined ? wrongCount : 0,
+                result_classification: resultClassification !== undefined ? resultClassification : null,
+                tab_warnings: tabWarnings !== undefined ? tabWarnings : 0,
+                exam_start_time: examStartTime !== undefined ? examStartTime : null,
+                exam_end_time: examEndTime !== undefined ? examEndTime : null,
+                submission_type: submissionType !== undefined ? submissionType : null
             };
 
             console.log(`[API] Create payload:`, JSON.stringify(createData, null, 2));
@@ -287,7 +303,14 @@ app.get('/api/results', async (req, res) => {
                 lastSyncStr: row.last_sync_str,
                 studentId: row.student_id,
                 examId: row.exam_id,
-                percentage: row.percentage
+                percentage: row.percentage,
+                correctCount: row.correct_count,
+                wrongCount: row.wrong_count,
+                resultClassification: row.result_classification,
+                tabWarnings: row.tab_warnings,
+                examStartTime: row.exam_start_time,
+                examEndTime: row.exam_end_time,
+                submissionType: row.submission_type
             };
         });
         res.json(mapped);
@@ -329,7 +352,14 @@ app.get('/api/results/:roll', async (req, res) => {
                 lastSyncStr: row.last_sync_str,
                 studentId: row.student_id,
                 examId: row.exam_id,
-                percentage: row.percentage
+                percentage: row.percentage,
+                correctCount: row.correct_count,
+                wrongCount: row.wrong_count,
+                resultClassification: row.result_classification,
+                tabWarnings: row.tab_warnings,
+                examStartTime: row.exam_start_time,
+                examEndTime: row.exam_end_time,
+                submissionType: row.submission_type
             }
         });
     } catch (error) {
