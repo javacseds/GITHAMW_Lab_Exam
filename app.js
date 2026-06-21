@@ -637,6 +637,9 @@ async function syncStudentHeartbeat() {
                 roll: currentStudent.roll,
                 name: currentStudent.name,
                 branch: currentStudent.branch,
+                studentId: currentStudent.roll,
+                examId: 'PYTHON_LAB_2026',
+                percentage: 0,
                 ...payload
             })
         });
@@ -1000,7 +1003,10 @@ function autoSaveProgress() {
     status: (results[currentStudent.roll] && results[currentStudent.roll].status) || "ACTIVE",
     timestamp: new Date().toISOString(),
     questionDetails: questionDetails,
-    timeTaken: timeTaken
+    timeTaken: timeTaken,
+    studentId: currentStudent.roll,
+    examId: 'PYTHON_LAB_2026',
+    percentage: (earnedMarks / 50) * 100
   };
 
   localStorage.setItem('assessment_results', JSON.stringify(results));
@@ -1023,6 +1029,11 @@ async function syncProgressToFirebase() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             roll: currentStudent.roll,
+            name: currentStudent.name,
+            branch: currentStudent.branch,
+            studentId: currentStudent.roll,
+            examId: 'PYTHON_LAB_2026',
+            percentage: studentData.marks !== undefined ? (studentData.marks / 50) * 100 : 0,
             ...studentData
         })
     });
@@ -1459,7 +1470,10 @@ async function saveResultToLocal(roll, attemptedCount, marks, status, questionDe
     status: status || "SUBMITTED",
     timestamp: new Date().toISOString(),
     questionDetails: questionDetails,
-    timeTaken: timeTaken
+    timeTaken: timeTaken,
+    studentId: roll,
+    examId: 'PYTHON_LAB_2026',
+    percentage: (marks / 50) * 100
   };
 
   let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');

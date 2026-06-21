@@ -25,7 +25,10 @@ async function runTests() {
         questionDetails: [
             { no: 1, title: "Test Question", attempted: true, passed: true, marks: 10 }
         ],
-        timeTaken: 45
+        timeTaken: 45,
+        studentId: "TESTROLL99",
+        examId: "TESTEXAM_1",
+        percentage: 80.0
     };
     res = await request(app)
         .post('/api/results')
@@ -41,7 +44,12 @@ async function runTests() {
     console.log("Data:", JSON.stringify(res.body, null, 2));
     if (res.status !== 200 || !res.body.exists) throw new Error("Test 3 failed");
     const retrieved = res.body.data;
-    if (retrieved.name !== dummyRecord.name || retrieved.marks !== dummyRecord.marks || retrieved.timeTaken !== dummyRecord.timeTaken) {
+    if (retrieved.name !== dummyRecord.name || 
+        retrieved.marks !== dummyRecord.marks || 
+        retrieved.timeTaken !== dummyRecord.timeTaken ||
+        retrieved.studentId !== dummyRecord.studentId ||
+        retrieved.examId !== dummyRecord.examId ||
+        retrieved.percentage !== dummyRecord.percentage) {
         throw new Error("Fields mapping mismatch in Test 3!");
     }
 
@@ -60,7 +68,7 @@ async function runTests() {
     console.log("Body:", res.body);
     if (res.status !== 200) throw new Error("Test 4 failed");
 
-    // Test 5: Verify COALESCE leaves name, branch, questionDetails, timeTaken, and marks intact
+    // Test 5: Verify COALESCE leaves name, branch, questionDetails, timeTaken, marks, studentId, examId, and percentage intact
     console.log("\n[Test 5] GET /api/results/TESTROLL99 (Verify COALESCE)");
     res = await request(app).get('/api/results/TESTROLL99');
     console.log("Status:", res.status);
@@ -70,12 +78,18 @@ async function runTests() {
     console.log("Branch remains:", afterHeartbeat.branch);
     console.log("Marks remains:", afterHeartbeat.marks);
     console.log("Time Taken remains:", afterHeartbeat.timeTaken);
+    console.log("Student ID remains:", afterHeartbeat.studentId);
+    console.log("Exam ID remains:", afterHeartbeat.examId);
+    console.log("Percentage remains:", afterHeartbeat.percentage);
     if (afterHeartbeat.status !== "IDLE" || 
         afterHeartbeat.name !== dummyRecord.name || 
         afterHeartbeat.branch !== dummyRecord.branch ||
         afterHeartbeat.marks !== dummyRecord.marks ||
-        afterHeartbeat.timeTaken !== dummyRecord.timeTaken) {
-        throw new Error("COALESCE updates wiped out name/branch/marks/timeTaken in Test 5!");
+        afterHeartbeat.timeTaken !== dummyRecord.timeTaken ||
+        afterHeartbeat.studentId !== dummyRecord.studentId ||
+        afterHeartbeat.examId !== dummyRecord.examId ||
+        afterHeartbeat.percentage !== dummyRecord.percentage) {
+        throw new Error("COALESCE updates wiped out fields in Test 5!");
     }
 
     // Test 6: Retest flow (DELETE student score)

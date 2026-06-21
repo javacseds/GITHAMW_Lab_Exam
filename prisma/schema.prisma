@@ -25,4 +25,8 @@ model results {
   time_taken       Int?    @default(0)
   last_active_str  String? @db.VarChar(100)
   last_sync_str    String? @db.VarChar(100)
+  student_id       String? @db.VarChar(100)
+  exam_id          String? @db.VarChar(100)
+  percentage       Float?
 }
+
