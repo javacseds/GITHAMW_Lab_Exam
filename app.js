@@ -513,7 +513,7 @@ async function attemptLogin() {
       loginError.style.display = 'none';
       loginBtn.textContent = originalBtnText;
       loginBtn.disabled = false;
-      startExam(student);
+      await startExam(student);
       return;
   }
 
@@ -553,7 +553,7 @@ async function attemptLogin() {
       document.getElementById('otp-modal').classList.add('active');
       window.pendingStudentLogin = student;
   } else {
-      startExam(student);
+      await startExam(student);
   }
 }
 
@@ -603,7 +603,7 @@ document.getElementById('verify-otp-btn').addEventListener('click', async () => 
         const data = await res.json();
         if (data.success) {
             document.getElementById('otp-modal').classList.remove('active');
-            startExam(student);
+            await startExam(student);
         } else {
             throw new Error(data.error || 'Failed');
         }
@@ -664,7 +664,7 @@ async function syncStudentHeartbeat() {
         });
     } catch(e) { console.error("PostgreSQL heartbeat sync failed", e); }
 }
-function startExam(student) {
+async function startExam(student) {
   currentStudent = student;
   assignedQIdxs = getStudentQuestions(student.idx);
   codes   = ['', '', '', '', ''];
@@ -692,6 +692,10 @@ function startExam(student) {
   buildNavTabs();
   renderQuestion(0);
 
+  // Send the initial heartbeat synchronously first to lock the session in the database
+  lastActivityTime = Date.now();
+  await syncStudentHeartbeat();
+
   loginScreen.style.display    = 'none';
   examScreen.style.display     = 'flex';
   window.scrollTo(0, 0);
@@ -705,10 +709,8 @@ function startExam(student) {
   startTimer();
   updateProgress();
 
-  lastActivityTime = Date.now();
   if (window.heartbeatInterval) clearInterval(window.heartbeatInterval);
   window.heartbeatInterval = setInterval(syncStudentHeartbeat, 30000); // Heartbeat every 30 seconds
-  syncStudentHeartbeat();
 
   if (window.firebaseSyncInterval) clearInterval(window.firebaseSyncInterval);
   window.firebaseSyncInterval = setInterval(syncProgressToFirebase, 60000); // Progress sync every 60 seconds
@@ -951,13 +953,13 @@ _grade_run()
         });
   }
   
+  let timeTaken = EXAM_DURATION - secondsLeft;
+  await saveResultToLocal(currentStudent.roll, attempted.filter(Boolean).length, earnedMarks, "SUBMITTED", questionDetails, timeTaken);
+
   document.getElementById('loader').classList.add('hidden');
   timeoutScreen.style.display = 'flex';
   document.getElementById('timeout-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
   document.getElementById('timeout-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#4ade80;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
-  
-  let timeTaken = EXAM_DURATION - secondsLeft;
-  saveResultToLocal(currentStudent.roll, attempted.filter(Boolean).length, earnedMarks, "SUBMITTED", questionDetails, timeTaken);
 }
 
 
@@ -1474,15 +1476,15 @@ _grade_run()
         });
     }
     
+    let timeTaken = EXAM_DURATION - secondsLeft;
+    await saveResultToLocal(currentStudent.roll, attempted.filter(Boolean).length, earnedMarks, "SUBMITTED", questionDetails, timeTaken);
+
     document.getElementById('loader').classList.add('hidden');
     
     document.getElementById('exam-screen').style.display = 'none';
     document.getElementById('submitted-screen').style.display = 'flex';
     document.getElementById('submit-student').textContent = `${currentStudent.name} · ${currentStudent.roll}`;
     document.getElementById('submit-summary').innerHTML = `Questions attempted: ${attempted.filter(Boolean).length} / 5 <br><span style="font-size:24px;color:#4ade80;font-weight:bold;margin-top:10px;display:block;">Overall Total Marks: ${earnedMarks} / 50</span>`;
-    
-    let timeTaken = EXAM_DURATION - secondsLeft;
-    saveResultToLocal(currentStudent.roll, attempted.filter(Boolean).length, earnedMarks, "SUBMITTED", questionDetails, timeTaken);
 });
 
 
