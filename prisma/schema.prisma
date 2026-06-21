@@ -19,7 +19,7 @@ model results {
   branch                String? @db.VarChar(100)
   marks                 Int?    @default(0)
   attempts              Int?    @default(0)
-  status                String? @default("ACTIVE") @db.VarChar(50)
+  status                String? @default("Not Started") @db.VarChar(50)
   timestamp             String? @db.VarChar(100)
   question_details      Json?
   time_taken            Int?    @default(0)
@@ -37,6 +37,11 @@ model results {
   submission_type       String? @db.VarChar(50)
   department            String? @db.VarChar(100)
   section               String? @db.VarChar(50)
+  semester              String? @db.VarChar(50)
+  academic_year         String? @db.VarChar(50)
+  mobile_number         String? @db.VarChar(50)
+  email                 String? @db.VarChar(150)
+  exam_permission       String? @default("Allowed") @db.VarChar(50)
   created_at            DateTime @default(now())
   updated_at            DateTime @default(now()) @updatedAt
 }

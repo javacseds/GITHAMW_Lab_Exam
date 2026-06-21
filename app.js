@@ -532,6 +532,357 @@ document.getElementById('admin-password-input').addEventListener('keydown', e =>
     if (e.key === 'Enter') document.getElementById('admin-login-btn').click();
 });
 
+// --- DYNAMIC REBUILD MODALS ---
+window.rebuildAddStudentModal = function() {
+    const modal = document.getElementById('add-student-modal');
+    if (!modal) return;
+    modal.innerHTML = `
+      <div class="modal-card" style="max-width: 500px; background:#1b2e45; border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:30px; max-height: 90vh; overflow-y: auto;">
+          <h3 style="margin-bottom:15px; color:var(--text); font-size:20px;">Add New Student</h3>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left;">
+              <div style="grid-column: span 2; margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Roll Number (Hall Ticket)</label>
+                  <input type="text" id="add-roll-input" placeholder="e.g. 238U1A0422" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; font-family:'Space Mono',monospace; outline:none;">
+              </div>
+              <div style="grid-column: span 2; margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Student Name</label>
+                  <input type="text" id="add-name-input" placeholder="Enter Full Name" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Department</label>
+                  <input type="text" id="add-dept-input" placeholder="e.g. CSE" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Branch</label>
+                  <input type="text" id="add-branch-input" placeholder="e.g. B.Tech CSE" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Section</label>
+                  <input type="text" id="add-sec-input" placeholder="e.g. A" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Semester</label>
+                  <input type="text" id="add-semester-input" placeholder="e.g. Semester 1" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Academic Year</label>
+                  <input type="text" id="add-year-input" placeholder="e.g. 2025-2026" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Mobile Number</label>
+                  <input type="text" id="add-mobile-input" placeholder="Enter 10 digits" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="grid-column: span 2; margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Email Address</label>
+                  <input type="email" id="add-email-input" placeholder="student@example.com" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="grid-column: span 2; margin-bottom: 15px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Exam Permission</label>
+                  <select id="add-permission-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+                      <option value="Allowed">Allowed</option>
+                      <option value="Blocked">Blocked</option>
+                  </select>
+              </div>
+          </div>
+          
+          <div class="modal-btns" style="margin-top: 15px;">
+              <button class="modal-cancel" id="close-add-btn">Cancel</button>
+              <button class="modal-confirm" id="save-add-btn" style="background:#10b981; color:#fff;">Add Student</button>
+          </div>
+      </div>
+    `;
+    
+    document.getElementById('close-add-btn').addEventListener('click', () => {
+        modal.classList.remove('active');
+    });
+    
+    document.getElementById('save-add-btn').addEventListener('click', handleSaveAddStudent);
+};
+
+window.rebuildEditStudentModal = function() {
+    const modal = document.getElementById('edit-student-modal');
+    if (!modal) return;
+    modal.innerHTML = `
+      <div class="modal-card" style="max-width: 500px; background:#1b2e45; border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:30px; max-height: 90vh; overflow-y: auto;">
+          <h3 style="margin-bottom:15px; color:var(--text); font-size:20px;">Edit Student Details</h3>
+          <input type="hidden" id="edit-original-roll">
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left;">
+              <div style="grid-column: span 2; margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Roll Number (Hall Ticket)</label>
+                  <input type="text" id="edit-roll-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; font-family:'Space Mono',monospace; outline:none;">
+              </div>
+              <div style="grid-column: span 2; margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Student Name</label>
+                  <input type="text" id="edit-name-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Department</label>
+                  <input type="text" id="edit-dept-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Branch</label>
+                  <input type="text" id="edit-branch-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Section</label>
+                  <input type="text" id="edit-sec-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Semester</label>
+                  <input type="text" id="edit-semester-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Academic Year</label>
+                  <input type="text" id="edit-year-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Mobile Number</label>
+                  <input type="text" id="edit-mobile-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="grid-column: span 2; margin-bottom: 8px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Email Address</label>
+                  <input type="email" id="edit-email-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+              </div>
+              <div style="grid-column: span 2; margin-bottom: 15px;">
+                  <label style="display:block; margin-bottom:5px; font-size:12px; color:var(--muted);">Exam Permission</label>
+                  <select id="edit-permission-input" style="width:100%; padding:10px; background:var(--navy3); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+                      <option value="Allowed">Allowed</option>
+                      <option value="Blocked">Blocked</option>
+                  </select>
+              </div>
+          </div>
+          
+          <div class="modal-btns" style="margin-top: 15px;">
+              <button class="modal-cancel" id="close-edit-btn">Cancel</button>
+              <button class="modal-confirm" id="save-edit-btn" style="background:var(--blue-light); color:var(--navy);">Save Changes</button>
+          </div>
+      </div>
+    `;
+    
+    document.getElementById('close-edit-btn').addEventListener('click', () => {
+        modal.classList.remove('active');
+    });
+    
+    document.getElementById('save-edit-btn').addEventListener('click', handleSaveEditStudent);
+};
+
+async function handleSaveAddStudent() {
+    const roll = document.getElementById('add-roll-input').value.trim().toUpperCase();
+    const name = document.getElementById('add-name-input').value.trim();
+    const dept = document.getElementById('add-dept-input').value.trim();
+    const branch = document.getElementById('add-branch-input').value.trim();
+    const section = document.getElementById('add-sec-input').value.trim();
+    const semester = document.getElementById('add-semester-input').value.trim();
+    const academicYear = document.getElementById('add-year-input').value.trim();
+    const mobileNumber = document.getElementById('add-mobile-input').value.trim();
+    const email = document.getElementById('add-email-input').value.trim();
+    const examPermission = document.getElementById('add-permission-input').value;
+    
+    if (!roll) {
+        alert("Roll Number (Hall Ticket) is required.");
+        return;
+    }
+    
+    if (studentMap[roll]) {
+        alert("A student with this Roll Number already exists!");
+        return;
+    }
+    
+    const newStudent = { 
+        name, roll, branch, department: dept, section, semester, academicYear, mobileNumber, email, examPermission,
+        status: "Not Started", marks: 0, attempts: 0
+    };
+    
+    students.push(newStudent);
+    studentMap[roll] = { ...newStudent, idx: students.length - 1 };
+    
+    let customStudents = JSON.parse(localStorage.getItem('custom_students') || '[]');
+    customStudents.push(newStudent);
+    localStorage.setItem('custom_students', JSON.stringify(customStudents));
+    
+    let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+    results[roll] = {
+        roll, name, branch, department: dept, section, semester, academicYear, mobileNumber, email, examPermission,
+        status: "Not Started", marks: 0, attempts: 0
+    };
+    localStorage.setItem('assessment_results', JSON.stringify(results));
+    
+    try {
+        await fetch(`${API_BASE}/api/results`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(results[roll])
+        });
+    } catch (e) {
+        console.error("Failed to sync new student to DB:", e);
+    }
+    
+    document.getElementById('add-student-modal').classList.remove('active');
+    renderAdmin();
+}
+
+async function handleSaveEditStudent() {
+    const originalRoll = document.getElementById('edit-original-roll').value;
+    const roll = document.getElementById('edit-roll-input').value.trim().toUpperCase();
+    const name = document.getElementById('edit-name-input').value.trim();
+    const dept = document.getElementById('edit-dept-input').value.trim();
+    const branch = document.getElementById('edit-branch-input').value.trim();
+    const section = document.getElementById('edit-sec-input').value.trim();
+    const semester = document.getElementById('edit-semester-input').value.trim();
+    const academicYear = document.getElementById('edit-year-input').value.trim();
+    const mobileNumber = document.getElementById('edit-mobile-input').value.trim();
+    const email = document.getElementById('edit-email-input').value.trim();
+    const examPermission = document.getElementById('edit-permission-input').value;
+    
+    if (!roll) {
+        alert("Roll Number (Hall Ticket) is required.");
+        return;
+    }
+    
+    if (roll !== originalRoll && studentMap[roll]) {
+        alert("A student with the new Roll Number already exists!");
+        return;
+    }
+    
+    const studentIdx = students.findIndex(s => s.roll === originalRoll);
+    let student = students[studentIdx];
+    if (student) {
+        student.roll = roll;
+        student.name = name;
+        student.branch = branch;
+        student.department = dept;
+        student.section = section;
+        student.semester = semester;
+        student.academic_year = academicYear;
+        student.mobile_number = mobileNumber;
+        student.email = email;
+        student.exam_permission = examPermission;
+    }
+    
+    if (roll !== originalRoll) {
+        studentMap[roll] = studentMap[originalRoll];
+        delete studentMap[originalRoll];
+    }
+    if (studentMap[roll]) {
+        studentMap[roll].roll = roll;
+        studentMap[roll].name = name;
+        studentMap[roll].branch = branch;
+        studentMap[roll].department = dept;
+        studentMap[roll].section = section;
+        studentMap[roll].semester = semester;
+        studentMap[roll].academic_year = academicYear;
+        studentMap[roll].mobile_number = mobileNumber;
+        studentMap[roll].email = email;
+        studentMap[roll].exam_permission = examPermission;
+    }
+    
+    let customStudents = JSON.parse(localStorage.getItem('custom_students') || '[]');
+    const customIdx = customStudents.findIndex(s => s.roll === originalRoll);
+    if (customIdx !== -1) {
+        customStudents[customIdx] = { name, roll, branch, department: dept, section, semester, academicYear, mobileNumber, email, examPermission };
+        localStorage.setItem('custom_students', JSON.stringify(customStudents));
+    }
+    
+    let overrides = JSON.parse(localStorage.getItem('student_overrides') || '{}');
+    overrides[originalRoll] = { name, branch, newRoll: roll, department: dept, section, semester, academicYear, mobileNumber, email, examPermission };
+    localStorage.setItem('student_overrides', JSON.stringify(overrides));
+    
+    let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+    let studentRes = results[originalRoll] || {};
+    studentRes = {
+        ...studentRes,
+        roll, name, branch, department: dept, section, semester, academicYear, mobileNumber, email, examPermission
+    };
+    
+    if (roll !== originalRoll) {
+        results[roll] = studentRes;
+        delete results[originalRoll];
+    } else {
+        results[roll] = studentRes;
+    }
+    localStorage.setItem('assessment_results', JSON.stringify(results));
+    
+    try {
+        if (roll !== originalRoll) {
+            await fetch(`${API_BASE}/api/results/${originalRoll}`, { method: 'DELETE' });
+        }
+        await fetch(`${API_BASE}/api/results`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(studentRes)
+        });
+    } catch (e) {
+        console.error("Failed to sync edited student to database:", e);
+    }
+    
+    document.getElementById('edit-student-modal').classList.remove('active');
+    renderAdmin();
+}
+
+window.toggleExamPermission = async function(roll) {
+    let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+    const currentPermission = (results[roll] && (results[roll].examPermission || results[roll].exam_permission)) || 'Allowed';
+    const nextPermission = currentPermission === 'Allowed' ? 'Blocked' : 'Allowed';
+    
+    if (!results[roll]) results[roll] = { roll };
+    results[roll].examPermission = nextPermission;
+    results[roll].exam_permission = nextPermission;
+    localStorage.setItem('assessment_results', JSON.stringify(results));
+    
+    const student = students.find(s => s.roll === roll);
+    if (student) {
+        student.exam_permission = nextPermission;
+    }
+    
+    try {
+        await fetch(`${API_BASE}/api/results`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                roll,
+                examPermission: nextPermission
+            })
+        });
+        console.log(`Successfully toggled exam permission for ${roll} to ${nextPermission}`);
+    } catch (e) {
+        console.error("Failed to toggle exam permission in database:", e);
+    }
+    
+    renderAdmin();
+};
+
+window.deleteStudent = async function(roll) {
+    if (confirm("Are you sure you want to delete student " + roll + " completely? This will erase their details and score.")) {
+        const idx = students.findIndex(s => s.roll === roll);
+        if (idx !== -1) students.splice(idx, 1);
+        delete studentMap[roll];
+        
+        students.forEach((s, i) => { studentMap[s.roll].idx = i; });
+        
+        let customStudents = JSON.parse(localStorage.getItem('custom_students') || '[]');
+        customStudents = customStudents.filter(s => s.roll !== roll);
+        localStorage.setItem('custom_students', JSON.stringify(customStudents));
+        
+        let overrides = JSON.parse(localStorage.getItem('student_overrides') || '{}');
+        delete overrides[roll];
+        localStorage.setItem('student_overrides', JSON.stringify(overrides));
+        
+        let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+        delete results[roll];
+        localStorage.setItem('assessment_results', JSON.stringify(results));
+        
+        try {
+            await fetch(`${API_BASE}/api/results/${roll}`, { method: 'DELETE' });
+        } catch (e) {
+            console.error("Failed to delete student from database:", e);
+        }
+        
+        renderAdmin();
+    }
+};
+
 async function attemptLogin() {
   const roll = rollInput.value.trim().toUpperCase();
   if (!roll) return;
@@ -553,10 +904,7 @@ async function attemptLogin() {
     startAdminPolling(intervalVal);
     return;
   }
-  const student = studentMap[roll];
-  if (!student) { loginError.textContent = "⚠ Roll number not found."; loginError.style.display = 'block'; rollInput.focus(); return; }
-  
-  // Check if Exam is open
+
   const globalConfig = JSON.parse(localStorage.getItem('admin_config') || '{"examOpen":true}');
   if (!globalConfig.examOpen) {
       loginError.textContent = "⚠ The exam has not started yet or is currently closed.";
@@ -571,14 +919,108 @@ async function attemptLogin() {
   loginBtn.disabled = true;
 
   try {
-      // 1. Live database status check to prevent concurrent parallel logins
       const res = await fetch(`${API_BASE}/api/results/${roll}`);
       if (!res.ok) throw new Error("HTTP error " + res.status);
       const data = await res.json();
       
-      if (data.exists) {
-          const liveData = data.data;
-          if (liveData.status === "ABSENT") {
+      if (!data.exists) {
+          loginError.textContent = "Hall Ticket Number is not registered. Please contact the Administrator.";
+          loginError.style.display = 'block';
+          rollInput.focus();
+          loginBtn.textContent = originalBtnText;
+          loginBtn.disabled = false;
+          return;
+      }
+      
+      const liveData = data.data;
+      
+      const permission = liveData.examPermission || liveData.exam_permission || "Allowed";
+      if (permission === "Blocked") {
+          loginError.textContent = "You are currently not authorized to attend this examination. Please contact the Administrator.";
+          loginError.style.display = 'block';
+          rollInput.focus();
+          loginBtn.textContent = originalBtnText;
+          loginBtn.disabled = false;
+          return;
+      }
+
+      if (liveData.status === "ABSENT") {
+          loginError.textContent = "⚠ Exam has been deactivated for this student (Marked Absent).";
+          loginError.style.display = 'block';
+          rollInput.focus();
+          loginBtn.textContent = originalBtnText;
+          loginBtn.disabled = false;
+          return;
+      }
+      if (liveData.status === "SUBMITTED") {
+          loginError.textContent = "⚠ This student has already submitted the exam.";
+          loginError.style.display = 'block';
+          rollInput.focus();
+          loginBtn.textContent = originalBtnText;
+          loginBtn.disabled = false;
+          return;
+      }
+      if (liveData.status === "ACTIVE" || liveData.status === "IDLE") {
+          loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
+          loginError.style.display = 'block';
+          rollInput.focus();
+          loginBtn.textContent = originalBtnText;
+          loginBtn.disabled = false;
+          return;
+      }
+
+      let student = studentMap[roll];
+      if (!student) {
+          student = {
+              roll: liveData.roll,
+              name: liveData.name || "",
+              branch: liveData.branch || "",
+              department: liveData.department || "",
+              section: liveData.section || "",
+              semester: liveData.semester || "",
+              academic_year: liveData.academicYear || liveData.academic_year || "",
+              mobile_number: liveData.mobileNumber || liveData.mobile_number || "",
+              email: liveData.email || ""
+          };
+          students.push(student);
+          studentMap[roll] = { ...student, idx: students.length - 1 };
+      } else {
+          if (liveData.name) student.name = liveData.name;
+          if (liveData.branch) student.branch = liveData.branch;
+      }
+
+      loginError.style.display = 'none';
+      loginBtn.textContent = originalBtnText;
+      loginBtn.disabled = false;
+      await startExam(student);
+      return;
+
+  } catch(e) {
+      console.warn("Live database status check failed. Proceeding in offline/local-storage mode:", e);
+      
+      const student = studentMap[roll];
+      if (!student) {
+          loginError.textContent = "Hall Ticket Number is not registered. Please contact the Administrator.";
+          loginError.style.display = 'block';
+          rollInput.focus();
+          loginBtn.textContent = originalBtnText;
+          loginBtn.disabled = false;
+          return;
+      }
+
+      let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+      const resData = results[roll];
+      if (resData) {
+          const permission = resData.examPermission || resData.exam_permission || student.exam_permission || "Allowed";
+          if (permission === "Blocked") {
+              loginError.textContent = "You are currently not authorized to attend this examination. Please contact the Administrator.";
+              loginError.style.display = 'block';
+              rollInput.focus();
+              loginBtn.textContent = originalBtnText;
+              loginBtn.disabled = false;
+              return;
+          }
+          if (resData.status === "ABSENT") {
               loginError.textContent = "⚠ Exam has been deactivated for this student (Marked Absent).";
               loginError.style.display = 'block';
               rollInput.focus();
@@ -586,7 +1028,7 @@ async function attemptLogin() {
               loginBtn.disabled = false;
               return;
           }
-          if (liveData.status === "SUBMITTED") {
+          if (resData.status === "SUBMITTED") {
               loginError.textContent = "⚠ This student has already submitted the exam.";
               loginError.style.display = 'block';
               rollInput.focus();
@@ -594,7 +1036,7 @@ async function attemptLogin() {
               loginBtn.disabled = false;
               return;
           }
-          if (liveData.status === "ACTIVE" || liveData.status === "IDLE") {
+          if (resData.status === "ACTIVE" || resData.status === "IDLE") {
               loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
               loginError.style.display = 'block';
               rollInput.focus();
@@ -603,52 +1045,12 @@ async function attemptLogin() {
               return;
           }
       }
-  } catch(e) {
-      console.warn("Live database status check failed. Proceeding in offline/local-storage mode:", e);
+
       loginError.style.display = 'none';
       loginBtn.textContent = originalBtnText;
       loginBtn.disabled = false;
       await startExam(student);
       return;
-  }
-
-  // 2. Local storage backup checks
-  let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
-  if (results[roll] && results[roll].status === "ABSENT") {
-      loginError.textContent = "⚠ Exam has been deactivated for this student (Marked Absent).";
-      loginError.style.display = 'block';
-      rollInput.focus();
-      loginBtn.textContent = originalBtnText;
-      loginBtn.disabled = false;
-      return;
-  }
-  if (results[roll] && results[roll].status === "SUBMITTED") {
-      loginError.textContent = "⚠ This student has already submitted the exam.";
-      loginError.style.display = 'block';
-      rollInput.focus();
-      loginBtn.textContent = originalBtnText;
-      loginBtn.disabled = false;
-      return;
-  }
-
-  loginError.style.display = 'none';
-  loginBtn.textContent = originalBtnText;
-  loginBtn.disabled = false;
-
-  // Check Auth Mode
-  const authModes = JSON.parse(localStorage.getItem('student_auth_modes') || '{}');
-  const requiresOtp = authModes[roll] === 'OTP';
-  
-  if (requiresOtp) {
-      document.getElementById('otp-email-step').style.display = 'block';
-      document.getElementById('otp-code-step').style.display = 'none';
-      document.getElementById('student-email-input').value = '';
-      document.getElementById('student-otp-input').value = '';
-      document.getElementById('otp-error').style.display = 'none';
-      document.getElementById('otp-modal').classList.add('active');
-      window.pendingStudentLogin = student;
-  } else {
-      await startExam(student);
   }
 }
 
@@ -1058,9 +1460,8 @@ async function terminateExam(type) {
 
     let timeTaken = EXAM_DURATION - secondsLeft;
     let resultClassification = "Fail";
-    if (earnedMarks >= 50) resultClassification = "Excellent";
-    else if (earnedMarks >= 40) resultClassification = "Good";
-    else if (earnedMarks >= 30) resultClassification = "Pass";
+    if (earnedMarks >= 40) resultClassification = "Excellent";
+    else if (earnedMarks >= 30) resultClassification = "Good";
     else resultClassification = "Fail";
 
     const examEndTime = new Date().toISOString();
@@ -1195,9 +1596,8 @@ function autoSaveProgress() {
   let correctCount = questionDetails.filter(qd => qd.passed).length;
   let wrongCount = questionDetails.filter(qd => qd.submitted && !qd.passed).length;
   let resultClassification = "Fail";
-  if (earnedMarks >= 50) resultClassification = "Excellent";
-  else if (earnedMarks >= 40) resultClassification = "Good";
-  else if (earnedMarks >= 30) resultClassification = "Pass";
+  if (earnedMarks >= 40) resultClassification = "Excellent";
+  else if (earnedMarks >= 30) resultClassification = "Good";
   else resultClassification = "Fail";
 
   let timeTaken = EXAM_DURATION - secondsLeft;
@@ -1297,6 +1697,34 @@ let editor;
 document.addEventListener("DOMContentLoaded", async () => {
     // Inject export modal
     injectReportModal();
+
+    // Rebuild modals dynamically
+    rebuildAddStudentModal();
+    rebuildEditStudentModal();
+
+    // Dynamically insert filter dropdown next to search input
+    const searchBarDiv = document.querySelector('#admin-search-input')?.parentNode;
+    if (searchBarDiv && !document.getElementById('admin-filter-select')) {
+        searchBarDiv.style.gap = '12px';
+        const filterSelect = document.createElement('select');
+        filterSelect.id = 'admin-filter-select';
+        filterSelect.style.cssText = 'padding: 10px 16px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border); background: var(--navy2); color: #fff; outline: none; cursor: pointer;';
+        filterSelect.innerHTML = `
+            <option value="all">All Students</option>
+            <option value="CSE">Dept: CSE</option>
+            <option value="ECE">Dept: ECE</option>
+            <option value="Allowed">Permission: Allowed</option>
+            <option value="Blocked">Permission: Blocked</option>
+            <option value="SUBMITTED">Status: Completed</option>
+            <option value="ACTIVE">Status: Online</option>
+            <option value="ABSENT">Status: Absent</option>
+            <option value="Not Started">Status: Not Started</option>
+        `;
+        searchBarDiv.insertBefore(filterSelect, document.getElementById('admin-search-input'));
+        filterSelect.addEventListener('change', () => {
+            renderAdmin(true);
+        });
+    }
 
     // 1. Setup CodeMirror
     editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
@@ -1698,9 +2126,7 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
     config.examOpen = !config.examOpen;
     localStorage.setItem('admin_config', JSON.stringify(config));
     renderAdmin();
-});
-
-async function renderAdmin(skipFirebaseFetch = false) {
+});async function renderAdmin(skipFirebaseFetch = false) {
   const tbody = document.getElementById('admin-tbody');
   
   let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
@@ -1716,7 +2142,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
           results = { ...results, ...dbResults };
           localStorage.setItem('assessment_results', JSON.stringify(results));
           
-          // Update DB Status indicator to ONLINE
           const dbInd = document.getElementById('db-status-indicator');
           if (dbInd) {
               dbInd.style.background = 'rgba(16,185,129,0.15)';
@@ -1725,7 +2150,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
           }
       } catch (e) {
           console.error("Error fetching from PostgreSQL. Using local results.", e);
-          // Update DB Status indicator to OFFLINE
           const dbInd = document.getElementById('db-status-indicator');
           if (dbInd) {
               dbInd.style.background = 'rgba(239,68,68,0.15)';
@@ -1751,7 +2175,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
       examBtn.textContent = "Open Exam";
   }
   
-  // 1. Calculate Analytics
   let branchStats = {};
   let totalRegistered = students.length;
   let totalStarted = 0;
@@ -1788,9 +2211,8 @@ async function renderAdmin(skipFirebaseFetch = false) {
          const m = res.marks || 0;
          marksList.push(m);
          
-         if (m === 50) totalExcellent++;
-         else if (m >= 40) totalGood++;
-         else if (m >= 30) totalPass++;
+         if (m >= 40) totalExcellent++;
+         else if (m >= 30) totalGood++;
          else totalFail++;
          
          if (m >= 30) {
@@ -1822,13 +2244,10 @@ async function renderAdmin(skipFirebaseFetch = false) {
       failPercent = ((failedSubmittedCount / marksList.length) * 100).toFixed(1);
   }
 
-  // Render Analytics HTML
   const analyticsDiv = document.getElementById('admin-analytics');
   let analyticsHTML = `
     <div style="width:100%; display:flex; flex-direction:column; gap:20px;">
-      <!-- Row 1: Key Metrics Grid -->
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; width:100%;">
-         <!-- Card 1: Registration -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:var(--accent2); font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Registration Status</div>
              <div style="font-size:32px; color:var(--text); font-weight:700; margin:10px 0;">${totalRegistered}</div>
@@ -1837,7 +2256,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
                  <span>Absent: <strong style="color:var(--red);">${totalAbsent}</strong></span>
              </div>
          </div>
-         <!-- Card 2: Exam Activity -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:#3b82f6; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Exam Progress</div>
              <div style="font-size:32px; color:#60a5fa; font-weight:700; margin:10px 0;">${totalStarted}</div>
@@ -1846,13 +2264,11 @@ async function renderAdmin(skipFirebaseFetch = false) {
                  <span>Submitted: <strong style="color:#34d399;">${totalSubmitted}</strong></span>
              </div>
          </div>
-         <!-- Card 3: Average score -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:#10b981; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Average Score</div>
              <div style="font-size:32px; color:#34d399; font-weight:700; margin:10px 0;">${avgMarks} <span style="font-size:16px; color:var(--muted);">/ 50</span></div>
              <div style="font-size:12px; color:var(--muted);">From ${totalSubmitted} submitted exams</div>
          </div>
-         <!-- Card 4: Score Range -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:#fb923c; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Score Range</div>
              <div style="font-size:32px; color:#fdba74; font-weight:700; margin:10px 0;">${maxMarks} <span style="font-size:16px; color:var(--muted);">Max</span></div>
@@ -1860,7 +2276,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
                  <span>Min Score: <strong style="color:var(--text);">${minMarks}</strong></span>
              </div>
          </div>
-         <!-- Card 5: Success Rate -->
          <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
              <div style="font-family:'Space Mono',monospace; color:#ec4899; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Success Rate</div>
              <div style="font-size:32px; color:#f472b6; font-weight:700; margin:10px 0;">${passPercent}% <span style="font-size:16px; color:var(--muted);">Pass</span></div>
@@ -1870,7 +2285,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
          </div>
       </div>
       
-      <!-- Row 2: Branch Analysis & Charts -->
       <div style="display:flex; gap:20px; flex-wrap:wrap; width:100%;">
           <div style="flex:2; display:flex; gap:20px; flex-wrap:wrap; min-width:300px;">
   `;
@@ -1920,7 +2334,6 @@ async function renderAdmin(skipFirebaseFetch = false) {
   `;
   analyticsDiv.innerHTML = analyticsHTML;
 
-  // Render Charts
   setTimeout(() => {
     if (typeof Chart === 'undefined') {
         console.warn("Chart.js is not loaded. Skipping chart rendering.");
@@ -1939,10 +2352,10 @@ async function renderAdmin(skipFirebaseFetch = false) {
     chartInstance2 = new Chart(ctx2, {
         type: 'doughnut',
         data: { 
-            labels: ['Excellent', 'Good', 'Pass', 'Fail', 'Absent', 'In Progress', 'Not Started'], 
+            labels: ['Excellent', 'Good', 'Fail', 'Absent', 'In Progress', 'Not Started'], 
             datasets: [{ 
-                data: [totalExcellent, totalGood, totalPass, totalFail, totalAbsent, totalInProgress, totalPending], 
-                backgroundColor: ['#eab308', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#34d399', '#374151'], 
+                data: [totalExcellent, totalGood, totalFail, totalAbsent, totalInProgress, totalPending], 
+                backgroundColor: ['#eab308', '#3b82f6', '#ef4444', '#8b5cf6', '#34d399', '#374151'], 
                 borderWidth: 0 
             }] 
         },
@@ -1950,36 +2363,120 @@ async function renderAdmin(skipFirebaseFetch = false) {
     });
   }, 100);
   
-  // 2. Render Table
-  // Sort students by branch, then by roll number ascending
+  const thead = document.querySelector('#admin-table thead');
+  if (thead) {
+      thead.innerHTML = `
+          <tr style="background:rgba(255,255,255,.05);border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;">
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:3%;">#</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Hall Ticket</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Name</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:5%;">Dept</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Branch</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Sec</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Permission</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Exam Status</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Submission</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:6%;">Marks</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:7%;">Result</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Started</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Submitted</th>
+              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:12%; white-space:nowrap;">Actions</th>
+          </tr>
+      `;
+  }
+
   let sortedStudents = [...students].sort((a, b) => {
-      if (a.branch < b.branch) return -1;
-      if (a.branch > b.branch) return 1;
-      if (a.roll < b.roll) return -1;
-      if (a.roll > b.roll) return 1;
+      const branchA = (a.branch || '').toLowerCase();
+      const branchB = (b.branch || '').toLowerCase();
+      if (branchA < branchB) return -1;
+      if (branchA > branchB) return 1;
+      const rollA = (a.roll || '').toLowerCase();
+      const rollB = (b.roll || '').toLowerCase();
+      if (rollA < rollB) return -1;
+      if (rollA > rollB) return 1;
       return 0;
   });
 
   const searchInput = document.getElementById('admin-search-input');
   const searchQuery = searchInput ? searchInput.value.toLowerCase().trim() : '';
   if (searchQuery) {
-      sortedStudents = sortedStudents.filter(s => 
-          (s.name && s.name.toLowerCase().includes(searchQuery)) || 
-          (s.roll && s.roll.toLowerCase().includes(searchQuery))
-      );
+      sortedStudents = sortedStudents.filter(s => {
+          const res = results[s.roll] || {};
+          const derived = deriveDeptAndSection(s.branch, s.roll);
+          const name = res.name || s.name || '';
+          const roll = res.roll || s.roll || '';
+          const branch = res.branch || s.branch || '';
+          const dept = res.department || s.department || derived.department || '';
+          return name.toLowerCase().includes(searchQuery) ||
+                 roll.toLowerCase().includes(searchQuery) ||
+                 branch.toLowerCase().includes(searchQuery) ||
+                 dept.toLowerCase().includes(searchQuery);
+      });
+  }
+
+  const filterSelect = document.getElementById('admin-filter-select');
+  const filterValue = filterSelect ? filterSelect.value : 'all';
+  if (filterValue !== 'all') {
+      sortedStudents = sortedStudents.filter(s => {
+          const res = results[s.roll] || {};
+          const derived = deriveDeptAndSection(s.branch, s.roll);
+          const studentPermission = res.examPermission || res.exam_permission || s.exam_permission || 'Allowed';
+          const studentStatus = res.status || 'Not Started';
+          const studentDept = res.department || s.department || derived.department || 'CSE';
+          
+          if (filterValue === 'CSE' || filterValue === 'ECE') {
+              return studentDept === filterValue;
+          }
+          if (filterValue === 'Allowed' || filterValue === 'Blocked') {
+              return studentPermission === filterValue;
+          }
+          if (filterValue === 'SUBMITTED') {
+              return studentStatus === 'SUBMITTED';
+          }
+          if (filterValue === 'ACTIVE') {
+              return studentStatus === 'ACTIVE' || studentStatus === 'IDLE';
+          }
+          if (filterValue === 'ABSENT') {
+              return studentStatus === 'ABSENT';
+          }
+          if (filterValue === 'Not Started') {
+              return studentStatus === 'Not Started' || !res.status;
+          }
+          return true;
+      });
   }
 
   if (sortedStudents.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="8" style="text-align:center;padding:30px;color:var(--muted2);font-size:14px;">No students found matching "${searchQuery}"</td>`;
+      tr.innerHTML = `<td colspan="14" style="text-align:center;padding:30px;color:var(--muted2);font-size:14px;">No students found matching current filters</td>`;
       tbody.appendChild(tr);
   } else {
+      const displayValue = (val) => {
+          if (val === undefined || val === null || String(val).trim() === '') {
+              return `<span style="color:var(--muted2); font-style:italic;">Empty</span>`;
+          }
+          return val;
+      };
+      
+      const formatTime = (isoStr) => {
+          if (!isoStr) return '-';
+          try {
+              const d = new Date(isoStr);
+              if (isNaN(d.getTime())) return isoStr;
+              return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch(e) {
+              return isoStr;
+          }
+      };
+
       sortedStudents.forEach((s, i) => {
-        const res = results[s.roll];
-        const isSub = res && res.status === 'SUBMITTED';
-        const isAbs = res && res.status === 'ABSENT';
-        const isActive = res && res.status === 'ACTIVE';
-        const isIdle = res && res.status === 'IDLE';
+        const res = results[s.roll] || {};
+        const derived = deriveDeptAndSection(s.branch || res.branch, s.roll);
+        
+        const isSub = res.status === 'SUBMITTED';
+        const isAbs = res.status === 'ABSENT';
+        const isActive = res.status === 'ACTIVE';
+        const isIdle = res.status === 'IDLE';
         
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
@@ -1987,32 +2484,89 @@ async function renderAdmin(skipFirebaseFetch = false) {
         tr.onmouseover = () => tr.style.background = 'rgba(255,255,255,0.02)';
         tr.onmouseout = () => tr.style.background = 'transparent';
         
-        let statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(255,255,255,0.1);color:#94a3b8;">PENDING</span>`;
+        let examStatusBadge = `<span style="color:var(--muted2);">Not Started</span>`;
         if (isAbs) {
-            statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(139,92,246,0.15);color:#a78bfa;">ABSENT</span>`;
+            examStatusBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;">ABSENT</span>`;
         } else if (isSub) {
-            if (res.marks === 50) {
-                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(234,179,8,0.15);color:#fde047;">EXCELLENT</span>`;
-            } else if (res.marks >= 40) {
-                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(59,130,246,0.15);color:#60a5fa;">GOOD</span>`;
-            } else if (res.marks >= 30) {
-                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;">PASS</span>`;
-            } else {
-                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(239,68,68,0.15);color:#fca5a5;">FAIL</span>`;
-            }
-        } else if (res && (res.status === 'ACTIVE' || res.status === 'IDLE')) {
+            examStatusBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;">COMPLETED</span>`;
+        } else if (isActive || isIdle) {
             const now = Date.now();
             const lastSync = res.lastSyncStr ? new Date(res.lastSyncStr).getTime() : 0;
             const diffSeconds = (now - lastSync) / 1000;
             
             if (diffSeconds > 45) {
-                // Heartbeat expired -> Offline
-                statusBadge = `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(239,68,68,0.15);color:#fca5a5;"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>OFFLINE</span>`;
-            } else if (res.status === 'ACTIVE') {
-                statusBadge = `<span class="pulse-dot" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>ONLINE</span>`;
-            } else if (res.status === 'IDLE') {
-                statusBadge = `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(249,115,22,0.15);color:#fb923c;"><span style="width:6px;height:6px;border-radius:50%;background:#fb923c;display:inline-block;"></span>IDLE</span>`;
+                examStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>OFFLINE</span>`;
+            } else if (isActive) {
+                examStatusBadge = `<span class="pulse-dot" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;"></span>ONLINE</span>`;
+            } else if (isIdle) {
+                examStatusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(249,115,22,0.15);color:#fb923c;"><span style="width:6px;height:6px;border-radius:50%;background:#fb923c;display:inline-block;"></span>IDLE</span>`;
             }
+        }
+        
+        let subStatus = "Not Started";
+        if (isSub) subStatus = "SUBMITTED";
+        else if (isActive || isIdle) subStatus = "In Progress";
+        else if (!s.name && !s.branch) subStatus = "Not Assigned";
+        
+        let subBadge = `<span style="color:var(--muted2);">${subStatus}</span>`;
+        if (isSub) {
+            subBadge = `<span style="color:#34d399;font-weight:600;">SUBMITTED</span>`;
+        } else if (isActive || isIdle) {
+            subBadge = `<span style="color:#fb923c;font-weight:600;">In Progress</span>`;
+        }
+        
+        const permission = res.examPermission || res.exam_permission || s.exam_permission || 'Allowed';
+        let permissionBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(16,185,129,0.15);color:#34d399;cursor:pointer;white-space:nowrap;" onclick="toggleExamPermission('${s.roll}')">Allowed</span>`;
+        if (permission === 'Blocked') {
+            permissionBadge = `<span style="display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;cursor:pointer;white-space:nowrap;" onclick="toggleExamPermission('${s.roll}')">Blocked</span>`;
+        }
+        
+        let resultBadge = `-`;
+        if (isSub && !isAbs) {
+            const marksVal = res.marks || 0;
+            if (marksVal >= 40) {
+                resultBadge = `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(234,179,8,0.15);color:#fde047;">Excellent</span>`;
+            } else if (marksVal >= 30) {
+                resultBadge = `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(59,130,246,0.15);color:#60a5fa;">Good</span>`;
+            } else {
+                resultBadge = `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;">Fail</span>`;
+            }
+        }
+        
+        const nameVal = displayValue(res.name !== undefined ? res.name : s.name);
+        const deptVal = displayValue(res.department !== undefined ? res.department : (s.department || derived.department));
+        const branchVal = displayValue(res.branch !== undefined ? res.branch : s.branch);
+        const secVal = displayValue(res.section !== undefined ? res.section : (s.section || derived.section));
+        
+        tr.innerHTML = `
+          <td style="padding:10px 10px;color:var(--muted2);">${i + 1}</td>
+          <td style="padding:10px 10px;font-family:'Space Mono',monospace;color:var(--text); white-space:nowrap;">${s.roll}</td>
+          <td style="padding:10px 10px;color:var(--text);">${nameVal}</td>
+          <td style="padding:10px 10px;color:var(--text);">${deptVal}</td>
+          <td style="padding:10px 10px;color:var(--muted);">${branchVal}</td>
+          <td style="padding:10px 10px;color:var(--muted);">${secVal}</td>
+          <td style="padding:10px 10px;">${permissionBadge}</td>
+          <td style="padding:10px 10px;">${examStatusBadge}</td>
+          <td style="padding:10px 10px;">${subBadge}</td>
+          <td style="padding:10px 10px;font-family:'Space Mono',monospace;font-weight:700;color:${isSub && !isAbs ? 'var(--text)' : 'var(--muted2)'};">
+            ${isSub && !isAbs ? res.marks + ' / 50' : '-'}
+          </td>
+          <td style="padding:10px 10px;">${resultBadge}</td>
+          <td style="padding:10px 10px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.examStartTime)}</td>
+          <td style="padding:10px 10px;color:var(--muted); font-size:11px; white-space:nowrap;">${isSub && !isAbs ? formatTime(res.timestamp) : '-'}</td>
+          <td style="padding:10px 10px; white-space:nowrap;">
+            ${!isSub ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--red);color:var(--red);margin-right:2px;" onclick="markAbsent('${s.roll}')">Absent</button>` : ''}
+            ${isSub ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="allowRetest('${s.roll}')">Retest</button>` : ''}
+            ${isSub && !isAbs ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--blue-light);color:var(--blue-light);margin-right:2px;" onclick="viewStudentReport('${s.roll}')">Report</button>` : ''}
+            ${isSub && !isAbs ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:#10b981;color:#10b981;margin-right:2px;" onclick="emailStudentReport('${s.roll}')">Email</button>` : ''}
+            <button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--muted);color:var(--muted);margin-right:2px;" onclick="openEditStudent('${s.roll}')">Edit</button>
+            <button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--red);color:var(--red);" onclick="deleteStudent('${s.roll}')">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+  }
+}   }
         }
 
         const authModes = JSON.parse(localStorage.getItem('student_auth_modes') || '{}');
@@ -2313,9 +2867,8 @@ function generateIndividualPDFReport(student, res) {
     let resultText = "Pending";
     let resultColor = "#666";
     if (res && res.status !== "ABSENT") {
-        if (res.marks === 50) { resultText = "EXCELLENT"; resultColor = "#d97706"; }
-        else if (res.marks >= 40) { resultText = "GOOD"; resultColor = "#2563eb"; }
-        else if (res.marks >= 30) { resultText = "PASS"; resultColor = "#059669"; }
+        if (res.marks >= 40) { resultText = "EXCELLENT"; resultColor = "#d97706"; }
+        else if (res.marks >= 30) { resultText = "GOOD"; resultColor = "#2563eb"; }
         else { resultText = "FAIL"; resultColor = "#dc2626"; }
     } else if (res && res.status === "ABSENT") {
         resultText = "ABSENT"; resultColor = "#7c3aed";
@@ -2873,123 +3426,17 @@ if (addStudentBtn) {
     addStudentBtn.addEventListener('click', () => {
         document.getElementById('add-roll-input').value = '';
         document.getElementById('add-name-input').value = '';
+        document.getElementById('add-dept-input').value = '';
         document.getElementById('add-branch-input').value = '';
+        document.getElementById('add-sec-input').value = '';
+        document.getElementById('add-semester-input').value = '';
+        document.getElementById('add-year-input').value = '';
+        document.getElementById('add-mobile-input').value = '';
+        document.getElementById('add-email-input').value = '';
+        document.getElementById('add-permission-input').value = 'Allowed';
         document.getElementById('add-student-modal').classList.add('active');
     });
-
-    document.getElementById('close-add-btn').addEventListener('click', () => {
-        document.getElementById('add-student-modal').classList.remove('active');
-    });
-
-    // Support submitting by pressing Enter key on any input field
-    ['add-roll-input', 'add-name-input', 'add-branch-input'].forEach(id => {
-        const inputEl = document.getElementById(id);
-        if (inputEl) {
-            inputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    document.getElementById('save-add-btn').click();
-                }
-            });
-        }
-    });
-
-    document.getElementById('save-add-btn').addEventListener('click', () => {
-        const newRoll = document.getElementById('add-roll-input').value.trim().toUpperCase();
-        const newName = document.getElementById('add-name-input').value.trim();
-        const newBranch = document.getElementById('add-branch-input').value.trim();
-        
-        if (!newRoll || !newName || !newBranch) {
-            alert("Please fill in all fields (Roll Number, Name, and Branch) to add a student.");
-            return;
-        }
-
-        if (studentMap[newRoll]) {
-            alert("A student with this Roll Number already exists!");
-            return;
-        }
-
-        const newStudent = { name: newName, roll: newRoll, branch: newBranch };
-        
-        // Add to current in-memory lists
-        students.push(newStudent);
-        studentMap[newRoll] = { ...newStudent, idx: students.length - 1 };
-        
-        // Persist custom students
-        let customStudents = JSON.parse(localStorage.getItem('custom_students') || '[]');
-        customStudents.push(newStudent);
-        localStorage.setItem('custom_students', JSON.stringify(customStudents));
-        
-        document.getElementById('add-student-modal').classList.remove('active');
-        renderAdmin();
-    });
 }
-
-// --- ADMIN EDIT STUDENT LOGIC ---
-window.openEditStudent = function(roll) {
-    const student = students.find(s => s.roll === roll);
-    document.getElementById('edit-original-roll').value = roll;
-    document.getElementById('edit-roll-input').value = student.roll;
-    document.getElementById('edit-name-input').value = student.name;
-    document.getElementById('edit-branch-input').value = student.branch;
-    document.getElementById('edit-student-modal').classList.add('active');
-};
-
-document.getElementById('close-edit-btn').addEventListener('click', () => {
-    document.getElementById('edit-student-modal').classList.remove('active');
-});
-
-// Support saving edits by pressing Enter key on any edit input field
-['edit-roll-input', 'edit-name-input', 'edit-branch-input'].forEach(id => {
-    const inputEl = document.getElementById(id);
-    if (inputEl) {
-        inputEl.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('save-edit-btn').click();
-            }
-        });
-    }
-});
-
-document.getElementById('save-edit-btn').addEventListener('click', () => {
-    const originalRoll = document.getElementById('edit-original-roll').value;
-    const newRoll = document.getElementById('edit-roll-input').value.trim().toUpperCase();
-    const newName = document.getElementById('edit-name-input').value.trim();
-    const newBranch = document.getElementById('edit-branch-input').value.trim();
-    
-    if (!newRoll || !newName || !newBranch) {
-        alert("Please fill in all fields (Roll Number, Name, and Branch) to save changes.");
-        return;
-    }
-
-    // Update in-memory
-    const student = students.find(s => s.roll === originalRoll);
-    if (!student) return;
-    student.name = newName;
-    student.branch = newBranch;
-    
-    // Save to overrides
-    let overrides = JSON.parse(localStorage.getItem('student_overrides') || '{}');
-    if (!overrides[originalRoll]) overrides[originalRoll] = {};
-    overrides[originalRoll].name = newName;
-    overrides[originalRoll].branch = newBranch;
-    overrides[originalRoll].newRoll = newRoll;
-    localStorage.setItem('student_overrides', JSON.stringify(overrides));
-    
-    // If roll changed, update results mapping so grades aren't lost
-    if (newRoll !== originalRoll) {
-        student.roll = newRoll;
-        let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
-        if (results[originalRoll]) {
-            results[newRoll] = results[originalRoll];
-            delete results[originalRoll];
-            localStorage.setItem('assessment_results', JSON.stringify(results));
-        }
-    }
-    
-    // Refresh admin panel
-    document.getElementById('edit-student-modal').classList.remove('active');
-    renderAdmin();
-});
 
 
 

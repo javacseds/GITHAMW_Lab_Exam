@@ -28,8 +28,124 @@ const pool = new Pool({
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// Resolve table initialization immediately as it is handled by prisma generate and db push
-const initDbPromise = Promise.resolve();
+async function seedDefaultStudents() {
+    console.log("[SEED] Running database seeding...");
+    const requestedRolls = ["238U1A0422", "238U1A0439", "238U1A0440", "238U1A0434", "238U1A0520"];
+    for (const r of requestedRolls) {
+        try {
+            await prisma.results.upsert({
+                where: { roll: r },
+                update: {},
+                create: {
+                    roll: r,
+                    name: "",
+                    branch: "",
+                    department: "",
+                    section: "",
+                    semester: "",
+                    academic_year: "",
+                    status: "Not Started",
+                    exam_permission: "Allowed"
+                }
+            });
+        } catch (err) {
+            console.error(`[SEED] Failed to seed requested roll ${r}:`, err);
+        }
+    }
+    
+    try {
+        const count = await prisma.results.count();
+        if (count <= requestedRolls.length + 2) {
+            console.log("[SEED] Results database is empty. Seeding 54 default roster students...");
+            const roster = [
+              { name: "Anjali",                    roll: "238U1A0568", branch: "B.Tech CSE" },
+              { name: "Krishna",                   roll: "238U1A0593", branch: "B.Tech CSE" },
+              { name: "Suri Snehanjali",           roll: "238U1A0507", branch: "B.Tech CSE" },
+              { name: "Kunta Samatha",             roll: "238U1A0412", branch: "B.Tech CSE" },
+              { name: "Lakshmi Bantrothu",         roll: "238U1A0504", branch: "B.Tech CSE" },
+              { name: "Pravallika",                roll: "238U1A0505", branch: "B.Tech CSE" },
+              { name: "Rajoli",                    roll: "238U1A0573", branch: "B.Tech CSE" },
+              { name: "Gaswetha",                  roll: "238U1A0565", branch: "B.Tech CSE" },
+              { name: "Dharamani",                 roll: "238U1A0595", branch: "B.Tech CSE" },
+              { name: "Chitha",                    roll: "238U1A0533", branch: "B.Tech CSE" },
+              { name: "Kalyani",                   roll: "238U1A0509", branch: "B.Tech CSE" },
+              { name: "Suvaneswari",               roll: "238U1A0569", branch: "B.Tech CSE" },
+              { name: "Jyothika Reddy",            roll: "238U1A0576", branch: "B.Tech CSE" },
+              { name: "Lakshmi Devi Pollakati",    roll: "238U1A0566", branch: "B.Tech CSE" },
+              { name: "Pravallika",                roll: "238U1A0574", branch: "B.Tech CSE" },
+              { name: "Mukkamalla",                roll: "238U1A0554", branch: "B.Tech CSE" },
+              { name: "Keerthana",                 roll: "238U1A0547", branch: "B.Tech CSE" },
+              { name: "Priya",                     roll: "238U1A0522", branch: "B.Tech CSE" },
+              { name: "Jainabi",                   roll: "238U1A0527", branch: "B.Tech CSE" },
+              { name: "Yesha",                     roll: "238U1A0559", branch: "B.Tech CSE" },
+              { name: "Hemalatha",                 roll: "238U1A0510", branch: "B.Tech CSE" },
+              { name: "Pending Name (238U1A3307)", roll: "238U1A3307", branch: "B.Tech CSE" },
+              { name: "Pending Name (238U1A0528)", roll: "238U1A0528", branch: "B.Tech CSE" },
+              { name: "Lakshminarasamma",          roll: "238U1A0536", branch: "B.Tech CSE" },
+              { name: "Param Archana",             roll: "238U1A0544", branch: "B.Tech CSE" },
+              { name: "Keerthana Jinka",           roll: "238U1A0535", branch: "B.Tech CSE" },
+              { name: "Pranaya Sri",               roll: "238U1A0555", branch: "B.Tech CSE" },
+              { name: "Varshitha",                 roll: "238U1A0513", branch: "B.Tech CSE" },
+              { name: "Yannam",                    roll: "238U1A0592", branch: "B.Tech CSE" },
+              { name: "Devi",                      roll: "238U1A0515", branch: "B.Tech CSE" },
+              { name: "Sneha",                     roll: "238U1A0583", branch: "B.Tech CSE" },
+              { name: "Chandrika",                 roll: "238U1A0585", branch: "B.Tech CSE" },
+              { name: "Bhumika Rama Bhumika",      roll: "238U1A3310", branch: "B.Tech CSE AIML" },
+              { name: "Hitha Pathipati",           roll: "238U1A3319", branch: "B.Tech CSE AIML" },
+              { name: "Machupalle",                roll: "238U1A0421", branch: "B.Tech ECE" },
+              { name: "Swami Golla",               roll: "238U1A0413", branch: "B.Tech ECE" },
+              { name: "Pooja",                     roll: "238U1A0415", branch: "B.Tech ECE" },
+              { name: "Mamatha",                   roll: "238U1A0443", branch: "B.Tech ECE" },
+              { name: "Manasa",                    roll: "238U1A0416", branch: "B.Tech ECE" },
+              { name: "Navya Sree",                roll: "238U1A0434", branch: "B.Tech ECE" },
+              { name: "Hemalatha",                 roll: "238U1A0417", branch: "B.Tech ECE" },
+              { name: "Dadana",                    roll: "238U1A0428", branch: "B.Tech ECE" },
+              { name: "Venkata Siri",              roll: "248U5A0404", branch: "B.Tech ECE" },
+              { name: "Bukke",                     roll: "238U1A0403", branch: "B.Tech ECE" },
+              { name: "Bellamkondu",               roll: "238U1A0402", branch: "B.Tech ECE" },
+              { name: "Dara",                      roll: "238U1A0408", branch: "B.Tech ECE" },
+              { name: "Bhargavi",                  roll: "248U5A0411", branch: "B.Tech ECE" },
+              { name: "Gaddam",                    roll: "238U1A0411", branch: "B.Tech ECE" },
+              { name: "Sree Koneti",               roll: "238U1A0419", branch: "B.Tech ECE" },
+              { name: "Pending Name (248U5A0206)", roll: "248U5A0206", branch: "B.Tech" },
+              { name: "Pending Name (248U5A0208)", roll: "248U5A0208", branch: "B.Tech" },
+              { name: "Pending Name (248U5A0207)", roll: "248U5A0207", branch: "B.Tech" },
+              { name: "Pending Name (248U5A0209)", roll: "248U5A0209", branch: "B.Tech" },
+              { name: "Pending Name (238U1A0440)", roll: "238U1A0440", branch: "B.Tech" }
+            ];
+            
+            for (const s of roster) {
+                let dept = "CSE";
+                if (s.branch.toLowerCase().includes("ece")) dept = "ECE";
+                let section = "A";
+                const numMatch = s.roll.match(/\d+$/);
+                if (numMatch && parseInt(numMatch[0]) > 60) section = "B";
+                
+                await prisma.results.upsert({
+                    where: { roll: s.roll },
+                    update: {},
+                    create: {
+                        roll: s.roll,
+                        name: s.name,
+                        branch: s.branch,
+                        department: dept,
+                        section: section,
+                        semester: "Semester 1",
+                        academic_year: "2025-2026",
+                        status: "Not Started",
+                        exam_permission: "Allowed"
+                    }
+                });
+            }
+            console.log("[SEED] Seeding defaults finished successfully.");
+        }
+    } catch (err) {
+        console.error("[SEED] Error seeding defaults:", err);
+    }
+}
+
+// Initialize database seeding on startup
+const initDbPromise = seedDefaultStudents();
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -195,6 +311,12 @@ app.post('/api/results', async (req, res) => {
         examStartTime, examEndTime, submissionType, department, section
     } = req.body;
 
+    const semester = req.body.semester;
+    const academic_year = req.body.academicYear || req.body.academic_year;
+    const mobile_number = req.body.mobileNumber || req.body.mobile_number;
+    const email = req.body.email;
+    const exam_permission = req.body.examPermission || req.body.exam_permission;
+
     if (!roll) {
         console.warn(`[API] Validation failed: Roll number is missing`);
         return res.status(400).json({ error: 'Roll number required' });
@@ -237,6 +359,11 @@ app.post('/api/results', async (req, res) => {
             if (submissionType !== undefined && submissionType !== null && submissionType !== '') updateData.submission_type = submissionType;
             if (department !== undefined && department !== null) updateData.department = department;
             if (section !== undefined && section !== null) updateData.section = section;
+            if (semester !== undefined && semester !== null) updateData.semester = semester;
+            if (academic_year !== undefined && academic_year !== null) updateData.academic_year = academic_year;
+            if (mobile_number !== undefined && mobile_number !== null) updateData.mobile_number = mobile_number;
+            if (email !== undefined && email !== null) updateData.email = email;
+            if (exam_permission !== undefined && exam_permission !== null) updateData.exam_permission = exam_permission;
             
             const reqStudentId = req.body.studentId || req.body.student_id;
             if (reqStudentId !== undefined && reqStudentId !== null && reqStudentId !== '') updateData.student_id = reqStudentId;
@@ -267,7 +394,7 @@ app.post('/api/results', async (req, res) => {
                 branch: branch !== undefined ? branch : null,
                 marks: marks !== undefined ? marks : 0,
                 attempts: attempts !== undefined ? attempts : 0,
-                status: status !== undefined ? status : "ACTIVE",
+                status: status !== undefined ? status : "Not Started",
                 timestamp: timestamp !== undefined ? timestamp : null,
                 question_details: questionDetails !== undefined ? questionDetails : null,
                 time_taken: timeTaken !== undefined ? timeTaken : 0,
@@ -284,7 +411,12 @@ app.post('/api/results', async (req, res) => {
                 exam_end_time: examEndTime !== undefined ? examEndTime : null,
                 submission_type: submissionType !== undefined ? submissionType : null,
                 department: department !== undefined ? department : null,
-                section: section !== undefined ? section : null
+                section: section !== undefined ? section : null,
+                semester: semester !== undefined ? semester : null,
+                academic_year: academic_year !== undefined ? academic_year : null,
+                mobile_number: mobile_number !== undefined ? mobile_number : null,
+                email: email !== undefined ? email : null,
+                exam_permission: exam_permission !== undefined ? exam_permission : "Allowed"
             };
 
             console.log(`[API] Create payload:`, JSON.stringify(createData, null, 2));
@@ -300,7 +432,9 @@ app.post('/api/results', async (req, res) => {
         // Broadcast the real-time update to all connected SSE admin clients
         sseClients.forEach(client => {
             try {
-                client.write(`data: ${JSON.stringify({ type: 'UPDATE' })}\n\n`);
+                if (client && typeof client.write === 'function') {
+                    client.write(`data: ${JSON.stringify({ type: 'UPDATE' })}\n\n`);
+                }
             } catch (err) {
                 console.error("[SSE] Broadcast failed for a client:", err);
             }
@@ -345,7 +479,12 @@ app.get('/api/results', async (req, res) => {
                 examEndTime: row.exam_end_time,
                 submissionType: row.submission_type,
                 department: row.department,
-                section: row.section
+                section: row.section,
+                semester: row.semester,
+                academicYear: row.academic_year,
+                mobileNumber: row.mobile_number,
+                email: row.email,
+                examPermission: row.exam_permission
             };
         });
         res.json(mapped);
@@ -396,7 +535,12 @@ app.get('/api/results/:roll', async (req, res) => {
                 examEndTime: row.exam_end_time,
                 submissionType: row.submission_type,
                 department: row.department,
-                section: row.section
+                section: row.section,
+                semester: row.semester,
+                academicYear: row.academic_year,
+                mobileNumber: row.mobile_number,
+                email: row.email,
+                examPermission: row.exam_permission
             }
         });
     } catch (error) {
