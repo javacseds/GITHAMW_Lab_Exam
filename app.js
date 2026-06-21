@@ -2416,20 +2416,20 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
   if (thead) {
       thead.innerHTML = `
           <tr style="background:rgba(255,255,255,.05);border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;">
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:3%;">#</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Hall Ticket</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Name</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:5%;">Dept</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Branch</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Sec</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Permission</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Exam Status</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Submission</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:6%;">Marks</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:7%;">Result</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Started</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Submitted</th>
-              <th style="padding:12px 10px;text-align:left;font-weight:600;color:var(--muted);width:12%; white-space:nowrap;">Actions</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:3%;">#</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Hall Ticket</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Name</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:5%;">Dept</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Branch</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:4%;">Sec</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Permission</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Exam Status</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:8%; white-space:nowrap;">Submission</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:6%;">Marks</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:7%;">Result</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Started</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:10%;">Submitted</th>
+              <th style="padding:12px 6px;text-align:left;font-weight:600;color:var(--muted);width:12%; white-space:nowrap;">Actions</th>
           </tr>
       `;
   }
@@ -2588,22 +2588,22 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
         const secVal = displayValue(res.section !== undefined ? res.section : (s.section || derived.section));
         
         tr.innerHTML = `
-          <td style="padding:10px 10px;color:var(--muted2);">${i + 1}</td>
-          <td style="padding:10px 10px;font-family:'Space Mono',monospace;color:var(--text); white-space:nowrap;">${s.roll}</td>
-          <td style="padding:10px 10px;color:var(--text);">${nameVal}</td>
-          <td style="padding:10px 10px;color:var(--text);">${deptVal}</td>
-          <td style="padding:10px 10px;color:var(--muted);">${branchVal}</td>
-          <td style="padding:10px 10px;color:var(--muted);">${secVal}</td>
-          <td style="padding:10px 10px;">${permissionBadge}</td>
-          <td style="padding:10px 10px;">${examStatusBadge}</td>
-          <td style="padding:10px 10px;">${subBadge}</td>
-          <td style="padding:10px 10px;font-family:'Space Mono',monospace;font-weight:700;color:${isSub && !isAbs ? 'var(--text)' : 'var(--muted2)'};">
+          <td style="padding:10px 6px;color:var(--muted2);">${i + 1}</td>
+          <td style="padding:10px 6px;font-family:'Space Mono',monospace;color:var(--text); white-space:nowrap;">${s.roll}</td>
+          <td style="padding:10px 6px;color:var(--text);">${nameVal}</td>
+          <td style="padding:10px 6px;color:var(--text);">${deptVal}</td>
+          <td style="padding:10px 6px;color:var(--muted);">${branchVal}</td>
+          <td style="padding:10px 6px;color:var(--muted);">${secVal}</td>
+          <td style="padding:10px 6px;">${permissionBadge}</td>
+          <td style="padding:10px 6px;">${examStatusBadge}</td>
+          <td style="padding:10px 6px;">${subBadge}</td>
+          <td style="padding:10px 6px;font-family:'Space Mono',monospace;font-weight:700;color:${isSub && !isAbs ? 'var(--text)' : 'var(--muted2)'};">
             ${isSub && !isAbs ? res.marks + ' / 50' : '-'}
           </td>
-          <td style="padding:10px 10px;">${resultBadge}</td>
-          <td style="padding:10px 10px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.examStartTime)}</td>
-          <td style="padding:10px 10px;color:var(--muted); font-size:11px; white-space:nowrap;">${isSub && !isAbs ? formatTime(res.timestamp) : '-'}</td>
-          <td style="padding:10px 10px; white-space:nowrap;">
+          <td style="padding:10px 6px;">${resultBadge}</td>
+          <td style="padding:10px 6px;color:var(--muted); font-size:11px; white-space:nowrap;">${formatTime(res.examStartTime)}</td>
+          <td style="padding:10px 6px;color:var(--muted); font-size:11px; white-space:nowrap;">${isSub && !isAbs ? formatTime(res.timestamp) : '-'}</td>
+          <td style="padding:10px 6px; white-space:nowrap;">
             ${!isSub ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--red);color:var(--red);margin-right:2px;" onclick="markAbsent('${s.roll}')">Absent</button>` : ''}
             ${(isActive || isIdle) ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="resetStudentSession('${s.roll}')">Reset Session</button>` : ''}
             ${(isSub || isAbs) ? `<button class="clear-btn" style="padding:2px 6px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:2px;" onclick="allowRetest('${s.roll}')">Retest</button>` : ''}
