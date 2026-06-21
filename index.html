@@ -42,17 +42,7 @@
             <button class="login-btn" id="login-btn">Start Exam →</button>
             <div id="login-error">⚠ Roll number not found. Please check and try again.</div>
             
-            <!-- Server Connection Settings -->
-            <div class="server-config-section" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px; text-align: left;">
-                <label style="display:block; margin-bottom: 6px; font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em;">Server Connection IP</label>
-                <div style="display:flex; gap: 8px;">
-                    <input type="text" id="server-ip-input" placeholder="e.g. 192.168.1.100 or localhost" style="flex: 1; padding: 10px 14px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; font-size: 12px; font-family: 'Space Mono', monospace; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--blue-light)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" />
-                    <button id="save-server-ip-btn" style="padding: 10px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">Connect</button>
-                </div>
-                <div id="server-ip-status" style="font-size: 11px; margin-top: 6px; color: #34d399; font-weight: 500; display: none;"></div>
-            </div>
-
-            <p class="login-footer-note" style="margin-top:16px;">5 Questions · 10 Marks Each · 50 Marks Total · 2 hrs 30 min</p>
+            <p class="login-footer-note">5 Questions · 10 Marks Each · 50 Marks Total · 2 hrs 30 min</p>
         </div>
         
         <!-- Admin View -->
@@ -185,7 +175,6 @@
           </div>
           <button id="toggle-exam-btn" class="clear-btn" style="border:1px solid rgba(255,255,255,0.2);">Close Exam</button>
           <button id="admin-add-student-btn" class="run-btn" style="padding:8px 16px; font-size:12px; background:linear-gradient(135deg,#6366f1,#818cf8);">+ Add Student</button>
-          <button id="admin-config-ip-btn" class="clear-btn" style="padding:8px 16px; font-size:12px; border:1px solid rgba(255,255,255,0.2); margin-right:4px;">🌐 Server IP</button>
           <button id="admin-change-pwd-btn" class="clear-btn" style="padding:8px 16px; font-size:12px; border:1px solid rgba(255,255,255,0.2);">🔒 Change Password</button>
           <button id="admin-download-btn" class="run-btn" style="padding:8px 16px; font-size:12px;">↓ Download PDF</button>
           <button id="admin-download-csv-btn" class="run-btn" style="padding:8px 16px; font-size:12px; background:linear-gradient(135deg,#10b981,#059669);">↓ Download CSV</button>
@@ -307,22 +296,6 @@
         <div class="modal-btns">
             <button class="modal-cancel" id="close-pwd-btn">Cancel</button>
             <button class="modal-confirm" id="save-pwd-btn" style="background:var(--yellow);color:#000;">Change</button>
-        </div>
-    </div>
-</div>
-
-<!-- Admin Server Connection IP Modal -->
-<div class="modal-overlay" id="admin-ip-modal">
-    <div class="modal-card" style="max-width:400px;">
-        <h3 style="margin-bottom:15px;color:var(--text);">Server Connection Settings</h3>
-        <div style="margin-bottom:20px;text-align:left;">
-            <label style="display:block;margin-bottom:5px;font-size:12px;color:var(--muted);">API Server IP Address</label>
-            <input type="text" id="admin-ip-input" placeholder="e.g. 192.168.1.100" style="width:100%;padding:10px;background:var(--navy3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:'Space Mono',monospace;outline:none;">
-            <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.4;">Specify the IP address of the teacher's central machine hosting the database backend server. Set to <strong>localhost</strong> if running locally on this machine.</p>
-        </div>
-        <div class="modal-btns">
-            <button class="modal-cancel" id="close-ip-modal-btn">Cancel</button>
-            <button class="modal-confirm" id="save-admin-ip-btn" style="background:var(--blue-light);color:var(--navy);">Apply Connection</button>
         </div>
     </div>
 </div>

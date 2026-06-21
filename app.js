@@ -330,11 +330,6 @@ function getStudentQuestions(studentIdx) {
 
 
 function getApiBase() {
-    const savedIp = localStorage.getItem('api_server_ip');
-    if (savedIp) {
-        const cleanIp = savedIp.replace(/^(https?:\/\/)?/, '').trim();
-        return `http://${cleanIp}:3000`;
-    }
     return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' || !window.location.hostname
       ? 'http://localhost:3000' 
       : '';
@@ -444,18 +439,6 @@ document.getElementById('admin-password-input').addEventListener('keydown', e =>
 });
 
 async function attemptLogin() {
-  // Automatically apply and save the Server IP configuration from the input box, if typed
-  const ipInput = document.getElementById('server-ip-input');
-  if (ipInput) {
-      const ip = ipInput.value.trim();
-      if (ip) {
-          localStorage.setItem('api_server_ip', ip);
-      } else {
-          localStorage.removeItem('api_server_ip');
-      }
-      API_BASE = getApiBase();
-  }
-
   const roll = rollInput.value.trim().toUpperCase();
   if (!roll) return;
   
@@ -526,13 +509,11 @@ async function attemptLogin() {
           }
       }
   } catch(e) {
-      console.error("Live database status check failed:", e);
-      // Force database connectivity. Block login if server is unreachable!
-      loginError.textContent = "⚠ Connection to exam server failed. Please check the Server Connection IP at the bottom or contact the invigilator.";
-      loginError.style.display = 'block';
-      rollInput.focus();
+      console.warn("Live database status check failed. Proceeding in offline/local-storage mode:", e);
+      loginError.style.display = 'none';
       loginBtn.textContent = originalBtnText;
       loginBtn.disabled = false;
+      startExam(student);
       return;
   }
 
@@ -1095,12 +1076,12 @@ function updateProgress() {
   document.getElementById('progress-info').textContent = `${att} / 5 attempted · Marks: ${marks} / 50`;
   
   const submitBtn = document.getElementById('open-submit-modal-btn');
-  if (marks >= 20) {
+  if (marks >= 10) {
       submitBtn.classList.remove('locked');
       submitBtn.title = "";
   } else {
       submitBtn.classList.add('locked');
-      submitBtn.title = "active only after reach min 20 marks";
+      submitBtn.title = "active only after reach min 10 marks";
   }
 }
 
@@ -1283,6 +1264,14 @@ sys.stdin = io.StringIO("\\n".join(list(window.stdinLines)) + "\\n")
         os.className = 'output-status ok';
     } catch (err) {
         hasError = true;
+        let errorHeader = "❌ SYNTAX / RUNTIME ERROR:";
+        if (err.message) {
+            const match = err.message.match(/line\s+(\d+)/i);
+            if (match) {
+                errorHeader = `❌ SYNTAX / RUNTIME ERROR (at Line ${match[1]}):`;
+            }
+        }
+        appendToConsole(errorHeader, true);
         if (err.message && err.message.includes('PythonError')) {
             appendToConsole(err.message, true);
         } else {
@@ -1320,8 +1309,6 @@ def _grade_run():
         sys.stdin = io.StringIO("\\n".join(list(window.grading_stdin)) + "\\n")
         exec(window.grading_code, {})
         return captured_out.getvalue()
-    except Exception:
-        return ""
     finally:
         sys.stdout = old_stdout
         sys.stdin = old_stdin
@@ -1334,10 +1321,19 @@ _grade_run()
                 
                 if (!compareOutput(actualOutput, expectedOutput, q.title)) {
                     allPassed = false;
+                    appendToConsole(`❌ LOGIC CHECK FAILED:\nInput:\n${sampleInput}\nExpected Output:\n${expectedOutput}\nActual Output:\n${actualOutput}\n`, true);
                     break;
                 }
             } catch(e) {
                 allPassed = false;
+                let lineNumText = "";
+                if (e.message) {
+                    const match = e.message.match(/line\s+(\d+)/i);
+                    if (match) {
+                        lineNumText = ` (at Line ${match[1]})`;
+                    }
+                }
+                appendToConsole(`❌ LOGIC CHECK FAILED (Runtime Error on Test Case)${lineNumText}:\nInput:\n${sampleInput}\nError:\n${e.message}\n`, true);
                 break;
             }
         }
@@ -1391,7 +1387,7 @@ document.getElementById('copy-btn').addEventListener('click', () => {
 document.getElementById('open-submit-modal-btn').addEventListener('click', () => {
     saveCurrent();
     const pCount = passed.filter(Boolean).length;
-    if (pCount * 10 < 20) return; // Locked until 20 marks
+    if (pCount * 10 < 10) return; // Locked until 10 marks
     const att = attempted.filter(Boolean).length;
     document.getElementById('modal-attempt-info').textContent =
       `${att} of 5 questions attempted · Estimated marks: ${att * 10} / 50`;
@@ -1635,7 +1631,7 @@ async function renderAdmin(skipFirebaseFetch = false) {
   // 1. Calculate Analytics
   let branchStats = {};
   let totalExcellent = 0;
-  let totalPass = 0;
+  let totalGood = 0;
   let totalFail = 0;
   let totalAbsent = 0;
   
@@ -1653,7 +1649,7 @@ async function renderAdmin(skipFirebaseFetch = false) {
          branchStats[s.branch].submitted++;
          branchStats[s.branch].totalMarks += results[s.roll].marks;
          if (results[s.roll].marks >= 40) totalExcellent++;
-         else if (results[s.roll].marks >= 30) totalPass++;
+         else if (results[s.roll].marks >= 30) totalGood++;
          else totalFail++;
       }
     }
@@ -1721,7 +1717,7 @@ async function renderAdmin(skipFirebaseFetch = false) {
     if (chartInstance2) chartInstance2.destroy();
     chartInstance2 = new Chart(ctx2, {
         type: 'doughnut',
-        data: { labels: ['Excellent', 'Pass', 'Fail', 'Absent', 'Pending'], datasets: [{ data: [totalExcellent, totalPass, totalFail, totalAbsent, students.length - (totalExcellent+totalPass+totalFail+totalAbsent)], backgroundColor: ['#eab308', '#10b981', '#ef4444', '#8b5cf6', '#374151'], borderWidth: 0 }] },
+        data: { labels: ['Excellent', 'Good', 'Fail', 'Absent', 'Pending'], datasets: [{ data: [totalExcellent, totalGood, totalFail, totalAbsent, students.length - (totalExcellent+totalGood+totalFail+totalAbsent)], backgroundColor: ['#eab308', '#10b981', '#ef4444', '#8b5cf6', '#374151'], borderWidth: 0 }] },
         options: { plugins: { legend: { position: 'right', labels: { color: '#ccc' } } }, responsive: true, maintainAspectRatio: false }
     });
   }, 100);
@@ -1770,7 +1766,7 @@ async function renderAdmin(skipFirebaseFetch = false) {
             if (res.marks >= 40) {
                 statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(234,179,8,0.15);color:#fde047;">EXCELLENT</span>`;
             } else if (res.marks >= 30) {
-                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;">PASS</span>`;
+                statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(16,185,129,0.15);color:#34d399;">GOOD</span>`;
             } else {
                 statusBadge = `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:rgba(239,68,68,0.15);color:#fca5a5;">FAIL</span>`;
             }
@@ -1834,7 +1830,7 @@ window.viewStudentReport = function(roll) {
     let resultColor = "#666";
     if (res && res.status !== "ABSENT") {
         if (res.marks >= 40) { resultText = "EXCELLENT"; resultColor = "#d97706"; }
-        else if (res.marks >= 30) { resultText = "PASS"; resultColor = "#059669"; }
+        else if (res.marks >= 30) { resultText = "GOOD"; resultColor = "#059669"; }
         else { resultText = "FAIL"; resultColor = "#dc2626"; }
     } else if (res && res.status === "ABSENT") {
         resultText = "ABSENT"; resultColor = "#7c3aed";
@@ -2088,7 +2084,7 @@ document.getElementById('admin-download-csv-btn').addEventListener('click', asyn
         } else if (isSub) {
             statusText = 'SUBMITTED';
             if (res.marks >= 40) statusText += ' (EXCELLENT)';
-            else if (res.marks >= 30) statusText += ' (PASS)';
+            else if (res.marks >= 30) statusText += ' (GOOD)';
             else statusText += ' (FAIL)';
             
             marksText = res.marks + ' / 50';
@@ -2385,79 +2381,7 @@ document.getElementById('save-edit-btn').addEventListener('click', () => {
     renderAdmin();
 });
 
-// --- API SERVER CONNECTION CONFIGURATION ---
-const serverIpInput = document.getElementById('server-ip-input');
-const saveServerIpBtn = document.getElementById('save-server-ip-btn');
-const serverIpStatus = document.getElementById('server-ip-status');
 
-if (serverIpInput) {
-    serverIpInput.value = localStorage.getItem('api_server_ip') || '';
-}
-
-if (saveServerIpBtn) {
-    saveServerIpBtn.addEventListener('click', async () => {
-        const ip = serverIpInput.value.trim();
-        if (ip) {
-            localStorage.setItem('api_server_ip', ip);
-        } else {
-            localStorage.removeItem('api_server_ip');
-        }
-        API_BASE = getApiBase();
-        
-        serverIpStatus.style.display = 'block';
-        serverIpStatus.style.color = 'var(--muted)';
-        serverIpStatus.textContent = 'Testing connection...';
-        
-        try {
-            const res = await fetch(`${API_BASE}/api/results`);
-            if (res.ok) {
-                serverIpStatus.style.color = '#34d399';
-                serverIpStatus.textContent = '✓ Connected successfully to database!';
-            } else {
-                throw new Error("HTTP error " + res.status);
-            }
-        } catch(e) {
-            serverIpStatus.style.color = '#fca5a5';
-            serverIpStatus.textContent = '✗ Connection failed! Check IP/backend server.';
-        }
-    });
-}
-
-// Admin configuration modals
-const configIpBtn = document.getElementById('admin-config-ip-btn');
-const adminIpModal = document.getElementById('admin-ip-modal');
-const closeIpModalBtn = document.getElementById('close-ip-modal-btn');
-const saveAdminIpBtn = document.getElementById('save-admin-ip-btn');
-const adminIpInput = document.getElementById('admin-ip-input');
-
-if (configIpBtn && adminIpModal) {
-    configIpBtn.addEventListener('click', () => {
-        if (adminIpInput) {
-            adminIpInput.value = localStorage.getItem('api_server_ip') || '';
-        }
-        adminIpModal.classList.add('active');
-    });
-}
-
-if (closeIpModalBtn && adminIpModal) {
-    closeIpModalBtn.addEventListener('click', () => {
-        adminIpModal.classList.remove('active');
-    });
-}
-
-if (saveAdminIpBtn && adminIpModal) {
-    saveAdminIpBtn.addEventListener('click', () => {
-        const ip = adminIpInput.value.trim();
-        if (ip) {
-            localStorage.setItem('api_server_ip', ip);
-        } else {
-            localStorage.removeItem('api_server_ip');
-        }
-        API_BASE = getApiBase();
-        adminIpModal.classList.remove('active');
-        renderAdmin();
-    });
-}
 
 // Admin dashboard auto-refresh control
 const refreshIntervalSelect = document.getElementById('admin-refresh-interval');
