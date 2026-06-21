@@ -1,0 +1,21 @@
+{
+  "name": "python_assessment_portal",
+  "version": "1.0.0",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.3.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "nodemailer": "^9.0.1",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1",
+    "supertest": "^7.2.2"
+  }
+}
