@@ -336,6 +336,67 @@ function getApiBase() {
 }
 let API_BASE = getApiBase();
 
+function deriveDeptAndSection(branch, roll) {
+  let dept = "CSE";
+  let bName = "CSE";
+  let sec = "A";
+  
+  if (branch) {
+      const lowerBranch = branch.toLowerCase();
+      if (lowerBranch.includes("cse")) {
+          dept = "CSE";
+          bName = "CSE";
+          if (lowerBranch.includes("aiml")) {
+              bName = "CSE AIML";
+          }
+      } else if (lowerBranch.includes("ece")) {
+          dept = "ECE";
+          bName = "ECE";
+      } else {
+          dept = branch;
+          bName = branch;
+      }
+  }
+  
+  if (roll) {
+      const match = roll.match(/\d+$/);
+      if (match) {
+          const num = parseInt(match[0]);
+          if (num > 60) {
+              sec = "B";
+          } else {
+              sec = "A";
+          }
+      }
+  }
+  return { department: dept, branch: bName, section: sec };
+}
+
+async function fetchWithRetry(url, options = {}, retries = 5, delay = 1000) {
+  let loaderTextEl = document.querySelector('.loader-text');
+  const oldText = loaderTextEl ? loaderTextEl.textContent : "Auto-Grading in Progress...";
+  for (let i = 0; i < retries; i++) {
+      try {
+          const res = await fetch(url, options);
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Server returned success: false');
+          if (loaderTextEl) loaderTextEl.textContent = oldText;
+          return data;
+      } catch (err) {
+          console.warn(`[Retry] Attempt ${i + 1} failed:`, err);
+          if (i === retries - 1) {
+              if (loaderTextEl) loaderTextEl.textContent = oldText;
+              throw err;
+          }
+          if (loaderTextEl) {
+              loaderTextEl.textContent = `Submission failed. Retrying...`;
+          }
+          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+      }
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
@@ -408,6 +469,35 @@ window.switchLoginTab = function(tab) {
     }
 };
 
+let adminSseSource = null;
+
+function initAdminSSE() {
+    if (adminSseSource) {
+        adminSseSource.close();
+    }
+    const sseUrl = `${API_BASE}/api/results/live`;
+    console.log(`[SSE] Connecting to ${sseUrl}...`);
+    adminSseSource = new EventSource(sseUrl);
+    
+    adminSseSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data && data.type === 'UPDATE') {
+                console.log("[SSE] Received UPDATE event. Re-rendering admin dashboard...");
+                renderAdmin(false); // Refetches live results from database
+            }
+        } catch (err) {
+            console.error("[SSE] Error parsing SSE message:", err);
+        }
+    };
+    
+    adminSseSource.onerror = (err) => {
+        console.error("[SSE] Connection error. Reconnecting in 5s...", err);
+        adminSseSource.close();
+        setTimeout(initAdminSSE, 5000);
+    };
+}
+
 function startAdminPolling(intervalMs) {
     if (window.adminInterval) clearInterval(window.adminInterval);
     if (intervalMs > 0) {
@@ -422,6 +512,7 @@ document.getElementById('admin-login-btn').addEventListener('click', () => {
         document.getElementById('admin-login-error').style.display = 'none';
         loginScreen.style.display = 'none';
         document.getElementById('admin-screen').style.display = 'flex';
+        initAdminSSE();
         renderAdmin();
         
         const refreshSelect = document.getElementById('admin-refresh-interval');
@@ -449,6 +540,7 @@ async function attemptLogin() {
     loginError.style.display = 'none';
     loginScreen.style.display = 'none';
     document.getElementById('admin-screen').style.display = 'flex';
+    initAdminSSE();
     renderAdmin();
     
     const refreshSelect = document.getElementById('admin-refresh-interval');
@@ -652,6 +744,7 @@ async function syncStudentHeartbeat() {
     localStorage.setItem('assessment_results', JSON.stringify(results));
     
     try {
+        const derived = deriveDeptAndSection(currentStudent.branch, currentStudent.roll);
         await fetch(`${API_BASE}/api/results`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -659,6 +752,8 @@ async function syncStudentHeartbeat() {
                 roll: currentStudent.roll,
                 name: currentStudent.name,
                 branch: currentStudent.branch,
+                department: derived.department,
+                section: derived.section,
                 studentId: currentStudent.roll,
                 examId: 'PYTHON_LAB_2026',
                 percentage: 0,
@@ -994,21 +1089,25 @@ async function terminateExam(type) {
     results[currentStudent.roll] = { ...(results[currentStudent.roll] || {}), ...finalResult };
     localStorage.setItem('assessment_results', JSON.stringify(results));
 
-    // Send payload to backend
+    // Send payload to backend with retry capability
+    const derived = deriveDeptAndSection(currentStudent.branch, currentStudent.roll);
     try {
-        await fetch(`${API_BASE}/api/results`, {
+        await fetchWithRetry(`${API_BASE}/api/results`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 roll: currentStudent.roll,
                 name: currentStudent.name,
                 branch: currentStudent.branch,
+                department: derived.department,
+                section: derived.section,
                 ...finalResult
             })
         });
         console.log("Successfully saved final result to database via API.");
     } catch (e) {
-        console.error("Failed to save final result to database via API:", e);
+        console.error("Failed to save final result to database via API after retries:", e);
+        alert("⚠ SUBMISSION WARNING: Could not connect to Neon DB. Your exam was saved locally, but final verification failed. Please show this to the invigilator.");
     }
 
     document.getElementById('loader').classList.add('hidden');
@@ -1076,7 +1175,7 @@ function autoSaveProgress() {
     let isAttempted = codeToTest.trim().length > 0;
     let qIdx = assignedQIdxs[i];
     let q = questions[qIdx];
-    let isPassed = passed[i];
+    let isPassed = passed[i] && questionSubmitted[i];
     
     if (isPassed && isAttempted) earnedMarks += 10;
     
@@ -1086,11 +1185,20 @@ function autoSaveProgress() {
       title: q.title,
       attempted: isAttempted,
       passed: isPassed && isAttempted,
+      submitted: questionSubmitted[i],
       marks: (isPassed && isAttempted) ? 10 : 0,
       code: codeToTest,
       stdin: stdins[i]
     });
   }
+
+  let correctCount = questionDetails.filter(qd => qd.passed).length;
+  let wrongCount = questionDetails.filter(qd => qd.submitted && !qd.passed).length;
+  let resultClassification = "Fail";
+  if (earnedMarks >= 50) resultClassification = "Excellent";
+  else if (earnedMarks >= 40) resultClassification = "Good";
+  else if (earnedMarks >= 30) resultClassification = "Pass";
+  else resultClassification = "Fail";
 
   let timeTaken = EXAM_DURATION - secondsLeft;
 
@@ -1110,7 +1218,12 @@ function autoSaveProgress() {
     timeTaken: timeTaken,
     studentId: currentStudent.roll,
     examId: 'PYTHON_LAB_2026',
-    percentage: (earnedMarks / 50) * 100
+    percentage: (earnedMarks / 50) * 100,
+    examStartTime: examStartTime,
+    tabWarnings: tabSwitches,
+    correctCount: correctCount,
+    wrongCount: wrongCount,
+    resultClassification: resultClassification
   };
 
   localStorage.setItem('assessment_results', JSON.stringify(results));
@@ -1127,6 +1240,7 @@ async function syncProgressToFirebase() {
   // Avoid overwriting a submitted exam
   if (studentData.status === "SUBMITTED") return;
 
+  const derived = deriveDeptAndSection(currentStudent.branch, currentStudent.roll);
   try {
     await fetch(`${API_BASE}/api/results`, {
         method: 'POST',
@@ -1135,6 +1249,8 @@ async function syncProgressToFirebase() {
             roll: currentStudent.roll,
             name: currentStudent.name,
             branch: currentStudent.branch,
+            department: derived.department,
+            section: derived.section,
             studentId: currentStudent.roll,
             examId: 'PYTHON_LAB_2026',
             percentage: studentData.marks !== undefined ? (studentData.marks / 50) * 100 : 0,
@@ -1179,8 +1295,10 @@ let pyodideInstance;
 let editor;
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Inject export modal
+    injectReportModal();
+
     // 1. Setup CodeMirror
-    
     editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
         mode: "python",
         theme: "material-ocean",
@@ -1635,11 +1753,20 @@ async function renderAdmin(skipFirebaseFetch = false) {
   
   // 1. Calculate Analytics
   let branchStats = {};
+  let totalRegistered = students.length;
+  let totalStarted = 0;
+  let totalSubmitted = 0;
+  let totalAbsent = 0;
+  let totalPending = 0;
+  let totalInProgress = 0;
+  
+  let marksList = [];
+  let passedSubmittedCount = 0;
+  let failedSubmittedCount = 0;
   let totalExcellent = 0;
   let totalGood = 0;
   let totalPass = 0;
   let totalFail = 0;
-  let totalAbsent = 0;
   
   students.forEach((s) => {
     if (!branchStats[s.branch]) {
@@ -1647,24 +1774,107 @@ async function renderAdmin(skipFirebaseFetch = false) {
     }
     branchStats[s.branch].total++;
     
-    if (results[s.roll]) {
-      if (results[s.roll].status === "ABSENT") {
+    const res = results[s.roll];
+    if (res) {
+      if (res.status === "ABSENT") {
          branchStats[s.branch].absent++;
          totalAbsent++;
-      } else {
+      } else if (res.status === "SUBMITTED") {
          branchStats[s.branch].submitted++;
-         branchStats[s.branch].totalMarks += results[s.roll].marks;
-         if (results[s.roll].marks === 50) totalExcellent++;
-         else if (results[s.roll].marks >= 40) totalGood++;
-         else if (results[s.roll].marks >= 30) totalPass++;
+         branchStats[s.branch].totalMarks += res.marks || 0;
+         totalSubmitted++;
+         totalStarted++;
+         
+         const m = res.marks || 0;
+         marksList.push(m);
+         
+         if (m === 50) totalExcellent++;
+         else if (m >= 40) totalGood++;
+         else if (m >= 30) totalPass++;
          else totalFail++;
+         
+         if (m >= 30) {
+             passedSubmittedCount++;
+         } else {
+             failedSubmittedCount++;
+         }
+      } else if (res.status === "ACTIVE" || res.status === "IDLE") {
+         totalStarted++;
+         totalInProgress++;
       }
+    } else {
+      totalPending++;
     }
   });
 
+  let avgMarks = 0;
+  let maxMarks = 0;
+  let minMarks = 0;
+  let passPercent = 0;
+  let failPercent = 0;
+  
+  if (marksList.length > 0) {
+      const sum = marksList.reduce((a, b) => a + b, 0);
+      avgMarks = (sum / marksList.length).toFixed(1);
+      maxMarks = Math.max(...marksList);
+      minMarks = Math.min(...marksList);
+      passPercent = ((passedSubmittedCount / marksList.length) * 100).toFixed(1);
+      failPercent = ((failedSubmittedCount / marksList.length) * 100).toFixed(1);
+  }
+
   // Render Analytics HTML
   const analyticsDiv = document.getElementById('admin-analytics');
-  let analyticsHTML = `<div style="flex:2;display:flex;gap:20px;flex-wrap:wrap;">`;
+  let analyticsHTML = `
+    <div style="width:100%; display:flex; flex-direction:column; gap:20px;">
+      <!-- Row 1: Key Metrics Grid -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; width:100%;">
+         <!-- Card 1: Registration -->
+         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+             <div style="font-family:'Space Mono',monospace; color:var(--accent2); font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Registration Status</div>
+             <div style="font-size:32px; color:var(--text); font-weight:700; margin:10px 0;">${totalRegistered}</div>
+             <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+                 <span>Pending: <strong style="color:var(--text);">${totalPending}</strong></span>
+                 <span>Absent: <strong style="color:var(--red);">${totalAbsent}</strong></span>
+             </div>
+         </div>
+         <!-- Card 2: Exam Activity -->
+         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+             <div style="font-family:'Space Mono',monospace; color:#3b82f6; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Exam Progress</div>
+             <div style="font-size:32px; color:#60a5fa; font-weight:700; margin:10px 0;">${totalStarted}</div>
+             <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+                 <span>In Progress: <strong style="color:#fb923c;">${totalInProgress}</strong></span>
+                 <span>Submitted: <strong style="color:#34d399;">${totalSubmitted}</strong></span>
+             </div>
+         </div>
+         <!-- Card 3: Average score -->
+         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+             <div style="font-family:'Space Mono',monospace; color:#10b981; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Average Score</div>
+             <div style="font-size:32px; color:#34d399; font-weight:700; margin:10px 0;">${avgMarks} <span style="font-size:16px; color:var(--muted);">/ 50</span></div>
+             <div style="font-size:12px; color:var(--muted);">From ${totalSubmitted} submitted exams</div>
+         </div>
+         <!-- Card 4: Score Range -->
+         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+             <div style="font-family:'Space Mono',monospace; color:#fb923c; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Score Range</div>
+             <div style="font-size:32px; color:#fdba74; font-weight:700; margin:10px 0;">${maxMarks} <span style="font-size:16px; color:var(--muted);">Max</span></div>
+             <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+                 <span>Min Score: <strong style="color:var(--text);">${minMarks}</strong></span>
+             </div>
+         </div>
+         <!-- Card 5: Success Rate -->
+         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+             <div style="font-family:'Space Mono',monospace; color:#ec4899; font-size:12px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;">Success Rate</div>
+             <div style="font-size:32px; color:#f472b6; font-weight:700; margin:10px 0;">${passPercent}% <span style="font-size:16px; color:var(--muted);">Pass</span></div>
+             <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+                 <span>Fail Rate: <strong style="color:var(--red);">${failPercent}%</strong></span>
+             </div>
+         </div>
+      </div>
+      
+      <!-- Row 2: Branch Analysis & Charts -->
+      <div style="display:flex; gap:20px; flex-wrap:wrap; width:100%;">
+          <div style="flex:2; display:flex; gap:20px; flex-wrap:wrap; min-width:300px;">
+  `;
+
   let labels = [];
   let avgData = [];
 
@@ -1675,20 +1885,20 @@ async function renderAdmin(skipFirebaseFetch = false) {
     avgData.push(avg);
 
     analyticsHTML += `
-      <div style="flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;">
-        <div style="font-family:'Space Mono',monospace;color:var(--accent2);font-size:14px;margin-bottom:12px;">${branch} ANALYSIS</div>
-        <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);">
+      <div style="flex:1; min-width:220px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+        <div style="font-family:'Space Mono',monospace; color:var(--accent2); font-size:13px; font-weight:700; margin-bottom:12px; text-transform:uppercase;">${branch}</div>
+        <div style="display:flex; justify-content:space-between; gap:12px; font-size:13px; color:var(--muted);">
           <div>
-             <div style="font-size:24px;color:var(--text);font-weight:700;">${stat.total}</div>
-             <div>Total</div>
+             <div style="font-size:22px; color:var(--text); font-weight:700;">${stat.total}</div>
+             <div style="font-size:11px;">Total</div>
           </div>
           <div>
-             <div style="font-size:24px;color:#34d399;font-weight:700;">${stat.submitted}</div>
-             <div>Submitted</div>
+             <div style="font-size:22px; color:#34d399; font-weight:700;">${stat.submitted}</div>
+             <div style="font-size:11px;">Submitted</div>
           </div>
           <div>
-             <div style="font-size:24px;color:var(--blue-light);font-weight:700;">${avg}</div>
-             <div>Avg Marks</div>
+             <div style="font-size:22px; color:var(--blue-light); font-weight:700;">${avg}</div>
+             <div style="font-size:11px;">Avg Marks</div>
           </div>
         </div>
       </div>
@@ -1696,12 +1906,16 @@ async function renderAdmin(skipFirebaseFetch = false) {
   }
   
   analyticsHTML += `
-    </div>
-    <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;align-items:center;">
-        <canvas id="branchChart" style="max-height:150px;"></canvas>
-    </div>
-    <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;align-items:center;">
-        <canvas id="statusChart" style="max-height:150px;"></canvas>
+          </div>
+          <div style="flex:1; min-width:250px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; align-items:center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+              <div style="font-family:'Space Mono',monospace; color:var(--muted); font-size:11px; font-weight:700; margin-bottom:10px; text-transform:uppercase; width:100%; text-align:left;">Branch Avg Marks</div>
+              <canvas id="branchChart" style="max-height:150px; width:100%;"></canvas>
+          </div>
+          <div style="flex:1; min-width:250px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; align-items:center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+              <div style="font-family:'Space Mono',monospace; color:var(--muted); font-size:11px; font-weight:700; margin-bottom:10px; text-transform:uppercase; width:100%; text-align:left;">Performance Distribution</div>
+              <canvas id="statusChart" style="max-height:150px; width:100%;"></canvas>
+          </div>
+      </div>
     </div>
   `;
   analyticsDiv.innerHTML = analyticsHTML;
@@ -1724,7 +1938,14 @@ async function renderAdmin(skipFirebaseFetch = false) {
     if (chartInstance2) chartInstance2.destroy();
     chartInstance2 = new Chart(ctx2, {
         type: 'doughnut',
-        data: { labels: ['Excellent', 'Good', 'Pass', 'Fail', 'Absent', 'Pending'], datasets: [{ data: [totalExcellent, totalGood, totalPass, totalFail, totalAbsent, students.length - (totalExcellent+totalGood+totalPass+totalFail+totalAbsent)], backgroundColor: ['#eab308', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#374151'], borderWidth: 0 }] },
+        data: { 
+            labels: ['Excellent', 'Good', 'Pass', 'Fail', 'Absent', 'In Progress', 'Not Started'], 
+            datasets: [{ 
+                data: [totalExcellent, totalGood, totalPass, totalFail, totalAbsent, totalInProgress, totalPending], 
+                backgroundColor: ['#eab308', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#34d399', '#374151'], 
+                borderWidth: 0 
+            }] 
+        },
         options: { plugins: { legend: { position: 'right', labels: { color: '#ccc' } } }, responsive: true, maintainAspectRatio: false }
     });
   }, 100);
@@ -1950,6 +2171,10 @@ document.getElementById('admin-logout-btn').addEventListener('click', () => {
   loginScreen.style.display = 'flex';
   rollInput.value = '';
   if (window.adminInterval) clearInterval(window.adminInterval);
+  if (adminSseSource) {
+      adminSseSource.close();
+      adminSseSource = null;
+  }
 });
 
 document.getElementById('admin-clear-btn').addEventListener('click', () => {
@@ -1976,163 +2201,533 @@ async function syncLatestResults() {
     return JSON.parse(localStorage.getItem('assessment_results') || '{}');
 }
 
-document.getElementById('admin-download-btn').addEventListener('click', async () => {
-    // Sync latest database records and re-render admin before PDF export
-    await syncLatestResults();
-    await renderAdmin(true);
+function downloadCSV(filename, headers, rows) {
+    const csvContent = [
+        headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
+        ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
-    if (typeof html2pdf === 'undefined') {
-        // Fall back to native browser printing if offline
-        document.body.classList.add('printing-admin');
-        document.title = 'Consolidated_Branch_Report';
-        window.print();
-        document.title = 'Python Lab Assessment · Gowthami Institute';
-        document.body.classList.remove('printing-admin');
-        alert('Consolidated report generated via browser print utility.');
-        return;
-    }
-    
-    // We will generate PDF of the entire admin-report-container
-    // First, let's inject a header with date
-    const container = document.getElementById('admin-report-container');
-    
-    // Create a temporary print header
-    const header = document.createElement('div');
-    header.id = 'temp-pdf-header';
-    header.style.textAlign = 'center';
-    header.style.marginBottom = '20px';
-    header.innerHTML = `
-        <h1 style="color:var(--text);margin-bottom:5px;">Python Lab Assessment - Consolidated Report</h1>
-        <p style="color:var(--muted);font-size:14px;margin-top:0;">Generated on: ${getSystemDateString()}</p>
+function downloadExcel(filename, sheetName, headers, rows) {
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>${sheetName}</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          table { border-collapse: collapse; }
+          th { background-color: #f1f5f9; color: #334155; font-weight: bold; border: 1px solid #cbd5e1; padding: 8px; }
+          td { border: 1px solid #e2e8f0; padding: 8px; color: #334155; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <thead>
+            <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `<tr>${row.map(val => `<td>${val ?? ''}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
     `;
-    container.insertBefore(header, container.firstChild);
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename.endsWith('.xls') ? filename : filename + '.xls';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function generatePDFReport(title, subtitle, headers, rows) {
+    const reportDiv = document.createElement('div');
+    reportDiv.style.padding = '40px';
+    reportDiv.style.background = '#ffffff';
+    reportDiv.style.color = '#000000';
+    reportDiv.style.fontFamily = "'DM Sans', sans-serif";
     
-    // Create a temporary style block for printing (black text, white bg)
-    let styleBlock = document.createElement('style');
-    styleBlock.id = 'temp-pdf-styles';
-    styleBlock.innerHTML = `
-        #admin-report-container, #admin-report-container * { color: #000 !important; border-color: #ddd !important; }
-        #admin-report-container th:last-child, #admin-report-container td:last-child { display: none !important; }
+    reportDiv.innerHTML = `
+      <div style="text-align:center; margin-bottom:30px; border-bottom:2px solid #e2e8f0; padding-bottom:20px;">
+          <h2 style="margin:0; color:#0f172a; font-size:22px;">Gouthami Institute of Technology and Management for Women</h2>
+          <p style="margin:6px 0 0 0; color:#475569; font-size:14px; font-weight:600;">${title}</p>
+          <p style="margin:4px 0 0 0; color:#64748b; font-size:12px;">${subtitle}</p>
+      </div>
+      <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:20px;">
+          <thead>
+              <tr style="background:#f1f5f9;">
+                  ${headers.map(h => `<th style="border:1px solid #cbd5e1; padding:8px; text-align:left; color:#1e293b; font-weight:bold;">${h}</th>`).join('')}
+              </tr>
+          </thead>
+          <tbody>
+              ${rows.map(row => `
+                  <tr>
+                      ${row.map(val => `<td style="border:1px solid #e2e8f0; padding:8px; color:#334155;">${val ?? ''}</td>`).join('')}
+                  </tr>
+              `).join('')}
+          </tbody>
+      </table>
+      <div style="margin-top:30px; font-size:11px; color:#64748b; text-align:right;">
+          Generated on: ${new Date().toLocaleString()}
+      </div>
     `;
-    document.head.appendChild(styleBlock);
     
-    // Configure html2pdf
     const opt = {
         margin:       [0.5, 0.5, 0.5, 0.5],
-        filename:     'Consolidated_Branch_Report.pdf',
+        filename:     title.replace(/\s+/g, '_') + '.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, backgroundColor: '#ffffff' },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
     };
     
-    html2pdf().set(opt).from(container).outputPdf('datauristring').then(async (pdfBase64) => {
-        // Remove the temporary header and styles after saving
-        document.getElementById('temp-pdf-header').remove();
-        document.getElementById('temp-pdf-styles').remove();
-        
-        // Save locally
-        const link = document.createElement('a');
-        link.href = pdfBase64;
-        link.download = 'Consolidated_Branch_Report.pdf';
-        link.click();
-        
-        // Send email
-        try {
-            document.getElementById('admin-download-btn').textContent = 'Sending Email...';
-            await fetch(`${API_BASE}/api/send-pdf`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    toEmail: 'javacsedscs@gmail.com',
-                    pdfBase64: pdfBase64,
-                    filename: 'Consolidated_Branch_Report.pdf',
-                    isConsolidated: true
-                })
-            });
-            document.getElementById('admin-download-btn').textContent = '↓ Download PDF';
-            alert('Consolidated report downloaded and emailed to javacsedscs@gmail.com');
-        } catch(e) {
-            console.error(e);
-            document.getElementById('admin-download-btn').textContent = '↓ Download PDF';
-            alert('Downloaded locally, but failed to email PDF.');
-        }
+    document.body.appendChild(reportDiv);
+    html2pdf().set(opt).from(reportDiv).save().then(() => {
+        document.body.removeChild(reportDiv);
     });
-});
+}
 
-document.getElementById('admin-download-csv-btn').addEventListener('click', async () => {
-    // Sync latest database records and re-render admin before CSV export
+function generateIndividualPDFReport(student, res) {
+    let resultText = "Pending";
+    let resultColor = "#666";
+    if (res && res.status !== "ABSENT") {
+        if (res.marks === 50) { resultText = "EXCELLENT"; resultColor = "#d97706"; }
+        else if (res.marks >= 40) { resultText = "GOOD"; resultColor = "#2563eb"; }
+        else if (res.marks >= 30) { resultText = "PASS"; resultColor = "#059669"; }
+        else { resultText = "FAIL"; resultColor = "#dc2626"; }
+    } else if (res && res.status === "ABSENT") {
+        resultText = "ABSENT"; resultColor = "#7c3aed";
+    }
+
+    let timeTakenStr = "N/A";
+    if (res && res.timeTaken) {
+        let m = Math.floor(res.timeTaken / 60);
+        let s = res.timeTaken % 60;
+        timeTakenStr = `${m} min ${s} sec`;
+    }
+    
+    let qTableHtml = "";
+    if (res && res.questionDetails && res.questionDetails.length > 0) {
+        qTableHtml = `
+            <h3 style="margin-top:20px;margin-bottom:10px;font-size:14px;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:5px;">Detailed Question Performance</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:left;">
+                <thead>
+                    <tr style="background:#f1f5f9;color:#475569;">
+                        <th style="padding:6px;border:1px solid #cbd5e1;">Q.No</th>
+                        <th style="padding:6px;border:1px solid #cbd5e1;">Question Title</th>
+                        <th style="padding:6px;border:1px solid #cbd5e1;text-align:center;">Attempted</th>
+                        <th style="padding:6px;border:1px solid #cbd5e1;text-align:center;">Result</th>
+                        <th style="padding:6px;border:1px solid #cbd5e1;text-align:right;">Marks</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        res.questionDetails.forEach(qd => {
+            let attemptStr = qd.attempted ? '<span style="color:#059669;font-weight:bold;">Yes</span>' : '<span style="color:#64748b;">No</span>';
+            let resStr = qd.attempted ? (qd.passed ? '<span style="color:#059669;font-weight:bold;">Correct</span>' : '<span style="color:#dc2626;font-weight:bold;">Wrong</span>') : '<span style="color:#64748b;">N/A</span>';
+            qTableHtml += `
+                <tr>
+                    <td style="padding:6px;border:1px solid #e2e8f0;color:#334155;">Q${qd.no} (ID: ${qd.qId})</td>
+                    <td style="padding:6px;border:1px solid #e2e8f0;color:#334155;">${qd.title}</td>
+                    <td style="padding:6px;border:1px solid #e2e8f0;text-align:center;">${attemptStr}</td>
+                    <td style="padding:6px;border:1px solid #e2e8f0;text-align:center;">${resStr}</td>
+                    <td style="padding:6px;border:1px solid #e2e8f0;text-align:right;font-weight:bold;color:${qd.marks > 0 ? '#059669' : '#475569'};">${qd.marks}</td>
+                </tr>
+            `;
+            if (qd.attempted && qd.code) {
+                let safeCode = qd.code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                qTableHtml += `
+                <tr>
+                    <td colspan="5" style="padding:0; border:1px solid #e2e8f0; border-top:none; background:#f8fafc;">
+                        <div style="padding:8px 10px; margin:4px 8px 8px 8px; border:1px solid #cbd5e1; border-radius:4px; background:#ffffff;">
+                            <div style="font-size:10px;color:#64748b;margin-bottom:4px;font-family:'Space Mono',monospace;text-transform:uppercase;font-weight:bold;">Student's Submitted Logic:</div>
+                            <pre style="margin:0;font-family:'Space Mono',monospace;font-size:11px;color:#1e293b;white-space:pre-wrap;word-wrap:break-word;">${safeCode}</pre>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }
+        });
+        qTableHtml += `</tbody></table>`;
+    }
+
+    const reportDiv = document.createElement('div');
+    reportDiv.style.padding = '40px';
+    reportDiv.style.background = '#ffffff';
+    reportDiv.style.color = '#000000';
+    reportDiv.style.fontFamily = "'DM Sans', sans-serif";
+    reportDiv.style.fontSize = '13px';
+    
+    reportDiv.innerHTML = `
+        <div style="text-align:center;margin-bottom:20px;border-bottom:2px solid #eee;padding-bottom:15px;">
+            <h2 style="margin:0;color:#0d1b2a;font-size:20px;">Gouthami Institute of Technology and Management for Women</h2>
+            <p style="margin:4px 0 0 0;color:#666;font-size:14px;">Python Lab Assessment - Individual Report</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tr><td style="padding:6px 0;color:#666;width:40%;">Student Name</td><td style="font-weight:700;">${student.name}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Roll Number</td><td style="font-weight:700;font-family:'Space Mono',monospace;">${student.roll}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Branch</td><td style="font-weight:700;">${student.branch}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Status</td><td style="font-weight:700;color:${resultColor};">${resultText}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Marks Obtained</td><td style="font-weight:700;font-size:15px;">${res && res.status !== 'ABSENT' ? res.marks + ' / 50' : 'N/A'}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Questions Attempted</td><td style="font-weight:700;">${res && res.status !== 'ABSENT' ? res.attempts + ' / 5' : 'N/A'}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Time Taken</td><td style="font-weight:700;">${timeTakenStr}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Submission Time</td><td style="font-weight:700;">${res && res.timestamp ? new Date(res.timestamp).toLocaleString() : 'N/A'}</td></tr>
+        </table>
+        ${qTableHtml}
+        <div style="margin-top:20px;font-size:11px;color:#888;text-align:right;">
+            Generated on: ${new Date().toLocaleString()}
+        </div>
+    `;
+
+    const opt = {
+        margin:       [0.5, 0.5, 0.5, 0.5],
+        filename:     `${student.roll}_Report.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, backgroundColor: '#ffffff' },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    
+    document.body.appendChild(reportDiv);
+    html2pdf().set(opt).from(reportDiv).save().then(() => {
+        document.body.removeChild(reportDiv);
+    });
+}
+
+function injectReportModal() {
+    if (document.getElementById('report-export-modal')) return;
+    
+    const modalDiv = document.createElement('div');
+    modalDiv.id = 'report-export-modal';
+    modalDiv.className = 'modal-overlay';
+    modalDiv.style.cssText = 'display:none; align-items:center; justify-content:center; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(10,17,26,0.85); z-index:9999; backdrop-filter:blur(8px);';
+    modalDiv.innerHTML = `
+      <div class="modal-card" style="width:480px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:30px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5); position:relative;">
+          <span id="close-export-modal-icon" style="position:absolute; top:20px; right:20px; font-size:24px; color:var(--muted); cursor:pointer; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='var(--muted)'">&times;</span>
+          <h3 style="margin-top:0; margin-bottom:10px; color:#fff; font-size:20px; display:flex; align-items:center; gap:8px;">📊 Export Assessment Reports</h3>
+          <p style="color:var(--muted); font-size:13px; margin-bottom:24px; line-height:1.4;">Select the report type, target segment, and export format to generate your report.</p>
+          
+          <div style="margin-bottom:16px;">
+              <label style="display:block; margin-bottom:8px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Report Segment</label>
+              <select id="export-segment" style="width:100%; padding:10px 12px; background:var(--navy3); border:1px solid var(--border); color:#fff; border-radius:8px; outline:none; font-size:14px;">
+                  <option value="overall">Overall (All Students)</option>
+                  <option value="dept">By Department</option>
+                  <option value="section">By Section</option>
+                  <option value="individual">Individual Student</option>
+                  <option value="toppers">Toppers (Marks >= 40)</option>
+                  <option value="failed">Failed Students (Marks &lt; 30)</option>
+                  <option value="passed">Passed Students (Marks >= 30)</option>
+                  <option value="question">Question-wise Accuracy</option>
+              </select>
+          </div>
+
+          <div id="export-dept-wrap" style="margin-bottom:16px; display:none;">
+              <label style="display:block; margin-bottom:8px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Select Department</label>
+              <select id="export-dept" style="width:100%; padding:10px 12px; background:var(--navy3); border:1px solid var(--border); color:#fff; border-radius:8px; outline:none; font-size:14px;"></select>
+          </div>
+
+          <div id="export-section-wrap" style="margin-bottom:16px; display:none;">
+              <label style="display:block; margin-bottom:8px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Select Section</label>
+              <select id="export-section" style="width:100%; padding:10px 12px; background:var(--navy3); border:1px solid var(--border); color:#fff; border-radius:8px; outline:none; font-size:14px;">
+                  <option value="A">Section A</option>
+                  <option value="B">Section B</option>
+              </select>
+          </div>
+
+          <div id="export-student-wrap" style="margin-bottom:16px; display:none;">
+              <label style="display:block; margin-bottom:8px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Select Student</label>
+              <select id="export-student" style="width:100%; padding:10px 12px; background:var(--navy3); border:1px solid var(--border); color:#fff; border-radius:8px; outline:none; font-size:14px;"></select>
+          </div>
+
+          <div style="margin-bottom:28px;">
+              <label style="display:block; margin-bottom:8px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Export Format</label>
+              <div style="display:flex; gap:12px;">
+                  <label style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02); color:#fff; cursor:pointer; font-size:14px; font-weight:500;">
+                      <input type="radio" name="export-format" value="pdf" checked style="accent-color:var(--blue-light);"> PDF Report
+                  </label>
+                  <label style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02); color:#fff; cursor:pointer; font-size:14px; font-weight:500;">
+                      <input type="radio" name="export-format" value="csv" style="accent-color:var(--blue-light);"> CSV File
+                  </label>
+                  <label style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02); color:#fff; cursor:pointer; font-size:14px; font-weight:500;">
+                      <input type="radio" name="export-format" value="excel" style="accent-color:var(--blue-light);"> Excel XLS
+                  </label>
+              </div>
+          </div>
+
+          <div class="modal-btns" style="display:flex; gap:12px; justify-content:flex-end;">
+              <button class="modal-cancel" id="cancel-export-btn" style="padding:10px 20px; border-radius:8px; background:transparent; border:1px solid var(--border); color:#fff; font-size:14px; cursor:pointer;">Cancel</button>
+              <button class="modal-confirm" id="confirm-export-btn" style="padding:10px 20px; border-radius:8px; background:linear-gradient(135deg,#3b82f6,#1d4ed8); border:none; color:#fff; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">Generate Report</button>
+          </div>
+      </div>
+    `;
+    document.body.appendChild(modalDiv);
+    
+    document.getElementById('close-export-modal-icon').addEventListener('click', () => {
+        modalDiv.style.display = 'none';
+    });
+    document.getElementById('cancel-export-btn').addEventListener('click', () => {
+        modalDiv.style.display = 'none';
+    });
+    modalDiv.addEventListener('click', function(e) {
+        if (e.target === this) modalDiv.style.display = 'none';
+    });
+    
+    const segmentSelect = document.getElementById('export-segment');
+    segmentSelect.addEventListener('change', () => {
+        const segment = segmentSelect.value;
+        document.getElementById('export-dept-wrap').style.display = segment === 'dept' ? 'block' : 'none';
+        document.getElementById('export-section-wrap').style.display = segment === 'section' ? 'block' : 'none';
+        document.getElementById('export-student-wrap').style.display = segment === 'individual' ? 'block' : 'none';
+    });
+    
+    // Populate departments and students
+    const depts = new Set();
+    students.forEach(s => {
+        const derived = deriveDeptAndSection(s.branch, s.roll);
+        depts.add(derived.department);
+    });
+    document.getElementById('export-dept').innerHTML = Array.from(depts).map(d => `<option value="${d}">${d}</option>`).join('');
+    
+    const sortedForSelect = [...students].sort((a,b) => a.roll.localeCompare(b.roll));
+    document.getElementById('export-student').innerHTML = sortedForSelect.map(s => `<option value="${s.roll}">${s.roll} - ${s.name}</option>`).join('');
+    
+    document.getElementById('confirm-export-btn').addEventListener('click', handleExportSubmit);
+}
+
+async function handleExportSubmit() {
+    const modal = document.getElementById('report-export-modal');
+    modal.style.display = 'none';
+    
+    const segment = document.getElementById('export-segment').value;
+    const format = document.querySelector('input[name="export-format"]:checked').value;
+    
     let results = await syncLatestResults();
     await renderAdmin(true);
     
-    // Sort students by branch, then by roll number ascending
-    let sortedStudents = [...students].sort((a, b) => {
+    let filteredStudents = [...students];
+    let title = "Python Lab Assessment Report";
+    let subtitle = "Consolidated Report";
+    
+    if (segment === 'dept') {
+        const targetDept = document.getElementById('export-dept').value;
+        filteredStudents = students.filter(s => {
+            const derived = deriveDeptAndSection(s.branch, s.roll);
+            return derived.department === targetDept;
+        });
+        title = `Python Lab Assessment Report - Dept: ${targetDept}`;
+        subtitle = `Department Specific Report for ${targetDept}`;
+    } else if (segment === 'section') {
+        const targetSection = document.getElementById('export-section').value;
+        filteredStudents = students.filter(s => {
+            const derived = deriveDeptAndSection(s.branch, s.roll);
+            return derived.section === targetSection;
+        });
+        title = `Python Lab Assessment Report - Section ${targetSection}`;
+        subtitle = `Section Specific Report for Section ${targetSection}`;
+    } else if (segment === 'toppers') {
+        filteredStudents = students.filter(s => results[s.roll] && results[s.roll].status === 'SUBMITTED' && results[s.roll].marks >= 40);
+        title = "Python Lab Assessment Report - Toppers";
+        subtitle = "Students scoring 40 and above (Good/Excellent performance)";
+    } else if (segment === 'failed') {
+        filteredStudents = students.filter(s => results[s.roll] && results[s.roll].status === 'SUBMITTED' && results[s.roll].marks < 30);
+        title = "Python Lab Assessment Report - Failed Students";
+        subtitle = "Students scoring under 30 (Fail classification)";
+    } else if (segment === 'passed') {
+        filteredStudents = students.filter(s => results[s.roll] && results[s.roll].status === 'SUBMITTED' && results[s.roll].marks >= 30);
+        title = "Python Lab Assessment Report - Passed Students";
+        subtitle = "Students scoring 30 and above (Pass/Good/Excellent performance)";
+    }
+    
+    filteredStudents.sort((a, b) => {
         if (a.branch < b.branch) return -1;
         if (a.branch > b.branch) return 1;
         if (a.roll < b.roll) return -1;
         if (a.roll > b.roll) return 1;
         return 0;
     });
-
-    const csvRows = [];
-    // Header row
-    csvRows.push(['S.No.', 'Roll Number', 'Name', 'Branch', 'Status', 'Marks', 'Time Taken (mins)', 'Submission Time'].map(val => `"${val.replace(/"/g, '""')}"`).join(','));
-
-    sortedStudents.forEach((s, idx) => {
+    
+    if (segment === 'individual') {
+        const roll = document.getElementById('export-student').value;
+        const student = students.find(s => s.roll === roll);
+        const res = results[roll];
+        if (!student) return;
+        
+        if (format === 'pdf') {
+            generateIndividualPDFReport(student, res);
+        } else if (format === 'csv') {
+            const headers = ['Roll Number', 'Name', 'Branch', 'Status', 'Marks', 'Time Taken (mins)', 'Submission Time'];
+            const rows = [];
+            let statusText = 'PENDING';
+            let marksText = '-';
+            let timeText = '-';
+            let subTimeText = '-';
+            if (res) {
+                statusText = res.status;
+                if (res.status === 'SUBMITTED') {
+                    marksText = res.marks;
+                    timeText = res.timeTaken;
+                    subTimeText = res.timestamp ? new Date(res.timestamp).toLocaleString() : '-';
+                }
+            }
+            rows.push([student.roll, student.name, student.branch, statusText, marksText, timeText, subTimeText]);
+            downloadCSV(`${student.roll}_Report.csv`, headers, rows);
+        } else if (format === 'excel') {
+            const headers = ['Roll Number', 'Name', 'Branch', 'Status', 'Marks', 'Time Taken (mins)', 'Submission Time'];
+            const rows = [];
+            let statusText = 'PENDING';
+            let marksText = '-';
+            let timeText = '-';
+            let subTimeText = '-';
+            if (res) {
+                statusText = res.status;
+                if (res.status === 'SUBMITTED') {
+                    marksText = res.marks;
+                    timeText = res.timeTaken;
+                    subTimeText = res.timestamp ? new Date(res.timestamp).toLocaleString() : '-';
+                }
+            }
+            rows.push([student.roll, student.name, student.branch, statusText, marksText, timeText, subTimeText]);
+            downloadExcel(`${student.roll}_Report.xls`, 'Individual', headers, rows);
+        }
+        return;
+    }
+    
+    if (segment === 'question') {
+        const qStats = {};
+        for (let i = 1; i <= 25; i++) {
+            qStats[i] = { id: i, title: questions[i-1].title, assigned: 0, attempted: 0, correct: 0 };
+        }
+        Object.values(results).forEach(res => {
+            if (res && res.questionDetails && res.questionDetails.length > 0) {
+                res.questionDetails.forEach(qd => {
+                    const qId = qd.qId;
+                    if (qStats[qId]) {
+                        qStats[qId].assigned++;
+                        if (qd.attempted) qStats[qId].attempted++;
+                        if (qd.passed) qStats[qId].correct++;
+                    }
+                });
+            }
+        });
+        
+        const headers = ['Q.No', 'Question Title', 'Times Assigned', 'Times Attempted', 'Times Correct', 'Accuracy %'];
+        const rows = [];
+        for (let i = 1; i <= 25; i++) {
+            const qs = qStats[i];
+            const acc = qs.assigned > 0 ? ((qs.correct / qs.assigned) * 100).toFixed(1) + '%' : '0.0%';
+            rows.push([qs.id, qs.title, qs.assigned, qs.attempted, qs.correct, acc]);
+        }
+        
+        if (format === 'pdf') {
+            generatePDFReport("Question-wise Accuracy Report", "Performance analysis for each of the 25 questions in the bank", headers, rows);
+        } else if (format === 'csv') {
+            downloadCSV(`Question_Accuracy_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+        } else if (format === 'excel') {
+            downloadExcel(`Question_Accuracy_${new Date().toISOString().slice(0,10)}.xls`, 'Question Accuracy', headers, rows);
+        }
+        return;
+    }
+    
+    const headers = ['S.No.', 'Roll Number', 'Name', 'Branch', 'Department', 'Section', 'Status', 'Marks', 'Time Taken (mins)', 'Submission Time'];
+    const rows = filteredStudents.map((s, idx) => {
         const res = results[s.roll];
-        const isSub = res && res.status === 'SUBMITTED';
-        const isAbs = res && res.status === 'ABSENT';
-        const isActive = res && res.status === 'ACTIVE';
-        const isIdle = res && res.status === 'IDLE';
-
+        const derived = deriveDeptAndSection(s.branch, s.roll);
         let statusText = 'PENDING';
         let marksText = '-';
         let timeTakenText = '-';
         let subTimeText = '-';
-
-        if (isAbs) {
-            statusText = 'ABSENT';
-        } else if (isSub) {
-            statusText = 'SUBMITTED';
-            if (res.marks === 50) statusText += ' (EXCELLENT)';
-            else if (res.marks >= 40) statusText += ' (GOOD)';
-            else if (res.marks >= 30) statusText += ' (PASS)';
-            else statusText += ' (FAIL)';
-            
-            marksText = res.marks + ' / 50';
-            timeTakenText = res.timeTaken ? res.timeTaken : '-';
-            subTimeText = res.timestamp ? new Date(res.timestamp).toLocaleString() : '-';
-        } else if (isActive) {
-            statusText = 'ACTIVE';
-        } else if (isIdle) {
-            statusText = 'IDLE';
+        
+        if (res) {
+            if (res.status === 'ABSENT') {
+                statusText = 'ABSENT';
+            } else if (res.status === 'SUBMITTED') {
+                statusText = 'SUBMITTED';
+                if (res.marks === 50) statusText += ' (EXCELLENT)';
+                else if (res.marks >= 40) statusText += ' (GOOD)';
+                else if (res.marks >= 30) statusText += ' (PASS)';
+                else statusText += ' (FAIL)';
+                
+                marksText = res.marks + ' / 50';
+                timeTakenText = res.timeTaken ? res.timeTaken : '-';
+                subTimeText = res.timestamp ? new Date(res.timestamp).toLocaleString() : '-';
+            } else if (res.status === 'ACTIVE') {
+                statusText = 'ACTIVE';
+            } else if (res.status === 'IDLE') {
+                statusText = 'IDLE';
+            }
         }
-
-        const row = [
+        return [
             idx + 1,
             s.roll,
             s.name,
             s.branch,
+            derived.department,
+            derived.section,
             statusText,
             marksText,
             timeTakenText,
             subTimeText
         ];
-
-        csvRows.push(row.map(val => {
-            const strVal = String(val === null || val === undefined ? '' : val);
-            return `"${strVal.replace(/"/g, '""')}"`;
-        }).join(','));
     });
+    
+    if (format === 'pdf') {
+        generatePDFReport(title, subtitle, headers, rows);
+    } else if (format === 'csv') {
+        const filename = title.replace(/\s+/g, '_') + '.csv';
+        downloadCSV(filename, headers, rows);
+    } else if (format === 'excel') {
+        const filename = title.replace(/\s+/g, '_') + '.xls';
+        downloadExcel(filename, 'Assessment Report', headers, rows);
+    }
+}
 
-    const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Consolidated_Branch_Report_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+async function syncLatestResults() {
+    try {
+        const res = await fetch(`${API_BASE}/api/results`);
+        if (res.ok) {
+            const dbResults = await res.json();
+            let results = JSON.parse(localStorage.getItem('assessment_results') || '{}');
+            results = { ...results, ...dbResults };
+            localStorage.setItem('assessment_results', JSON.stringify(results));
+            return results;
+        }
+    } catch(e) {
+        console.error("Failed to sync latest results from database", e);
+    }
+    return JSON.parse(localStorage.getItem('assessment_results') || '{}');
+}
+
+document.getElementById('admin-download-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    injectReportModal();
+    document.getElementById('report-export-modal').style.display = 'flex';
+});
+
+document.getElementById('admin-download-csv-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    injectReportModal();
+    document.getElementById('report-export-modal').style.display = 'flex';
 });
 
 window.emailStudentReport = async function(roll) {

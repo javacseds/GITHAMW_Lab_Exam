@@ -39,6 +39,25 @@ const transporter = nodemailer.createTransport({
     }
 });
 
+// SSE Clients array
+let sseClients = [];
+
+// SSE endpoint for real-time dashboard updates
+app.get('/api/results/live', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    
+    sseClients.push(res);
+    console.log(`[SSE] Client connected. Total active clients: ${sseClients.length}`);
+    
+    req.on('close', () => {
+        sseClients = sseClients.filter(c => c !== res);
+        console.log(`[SSE] Client disconnected. Total active clients: ${sseClients.length}`);
+    });
+});
+
 // API Routes
 
 app.post('/api/send-otp', async (req, res) => {
@@ -173,7 +192,7 @@ app.post('/api/results', async (req, res) => {
         roll, name, branch, marks, attempts, status, 
         timestamp, questionDetails, timeTaken, lastActiveStr, lastSyncStr,
         correctCount, wrongCount, resultClassification, tabWarnings,
-        examStartTime, examEndTime, submissionType
+        examStartTime, examEndTime, submissionType, department, section
     } = req.body;
 
     if (!roll) {
@@ -216,6 +235,8 @@ app.post('/api/results', async (req, res) => {
             if (examStartTime !== undefined && examStartTime !== null && examStartTime !== '') updateData.exam_start_time = examStartTime;
             if (examEndTime !== undefined && examEndTime !== null && examEndTime !== '') updateData.exam_end_time = examEndTime;
             if (submissionType !== undefined && submissionType !== null && submissionType !== '') updateData.submission_type = submissionType;
+            if (department !== undefined && department !== null) updateData.department = department;
+            if (section !== undefined && section !== null) updateData.section = section;
             
             const reqStudentId = req.body.studentId || req.body.student_id;
             if (reqStudentId !== undefined && reqStudentId !== null && reqStudentId !== '') updateData.student_id = reqStudentId;
@@ -261,7 +282,9 @@ app.post('/api/results', async (req, res) => {
                 tab_warnings: tabWarnings !== undefined ? tabWarnings : 0,
                 exam_start_time: examStartTime !== undefined ? examStartTime : null,
                 exam_end_time: examEndTime !== undefined ? examEndTime : null,
-                submission_type: submissionType !== undefined ? submissionType : null
+                submission_type: submissionType !== undefined ? submissionType : null,
+                department: department !== undefined ? department : null,
+                section: section !== undefined ? section : null
             };
 
             console.log(`[API] Create payload:`, JSON.stringify(createData, null, 2));
@@ -273,6 +296,16 @@ app.post('/api/results', async (req, res) => {
         }
         
         console.log(`[API] Database response:`, JSON.stringify(dbResponse, null, 2));
+        
+        // Broadcast the real-time update to all connected SSE admin clients
+        sseClients.forEach(client => {
+            try {
+                client.write(`data: ${JSON.stringify({ type: 'UPDATE' })}\n\n`);
+            } catch (err) {
+                console.error("[SSE] Broadcast failed for a client:", err);
+            }
+        });
+
         res.json({ success: true, message: 'Result synced successfully' });
     } catch (error) {
         console.error('[API] Error saving result. Stack trace:', error.stack || error);
@@ -310,7 +343,9 @@ app.get('/api/results', async (req, res) => {
                 tabWarnings: row.tab_warnings,
                 examStartTime: row.exam_start_time,
                 examEndTime: row.exam_end_time,
-                submissionType: row.submission_type
+                submissionType: row.submission_type,
+                department: row.department,
+                section: row.section
             };
         });
         res.json(mapped);
@@ -359,7 +394,9 @@ app.get('/api/results/:roll', async (req, res) => {
                 tabWarnings: row.tab_warnings,
                 examStartTime: row.exam_start_time,
                 examEndTime: row.exam_end_time,
-                submissionType: row.submission_type
+                submissionType: row.submission_type,
+                department: row.department,
+                section: row.section
             }
         });
     } catch (error) {

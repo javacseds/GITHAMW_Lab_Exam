@@ -35,5 +35,9 @@ model results {
   exam_start_time       String? @db.VarChar(100)
   exam_end_time         String? @db.VarChar(100)
   submission_type       String? @db.VarChar(50)
+  department            String? @db.VarChar(100)
+  section               String? @db.VarChar(50)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @default(now()) @updatedAt
 }
 
