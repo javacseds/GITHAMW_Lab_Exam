@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model otps {
+  roll      String  @id @db.VarChar(50)
+  otp       String? @db.VarChar(10)
+  email     String? @db.VarChar(150)
+  timestamp BigInt?
+}
+
+model results {
+  roll             String  @id @db.VarChar(50)
+  name             String? @db.VarChar(100)
+  branch           String? @db.VarChar(100)
+  marks            Int?    @default(0)
+  attempts         Int?    @default(0)
+  status           String? @default("ACTIVE") @db.VarChar(50)
+  timestamp        String? @db.VarChar(100)
+  question_details Json?
+  time_taken       Int?    @default(0)
+  last_active_str  String? @db.VarChar(100)
+  last_sync_str    String? @db.VarChar(100)
+}
