@@ -2566,38 +2566,6 @@ document.getElementById('toggle-exam-btn').addEventListener('click', () => {
         tbody.appendChild(tr);
       });
   }
-}   }
-        }
-
-        const authModes = JSON.parse(localStorage.getItem('student_auth_modes') || '{}');
-        const authVal = authModes[s.roll] || 'DIRECT';
-        
-        tr.innerHTML = `
-          <td style="padding:14px 20px;color:var(--muted2);">${i + 1}</td>
-          <td style="padding:14px 20px;font-family:'Space Mono',monospace;color:var(--text);">${s.roll}</td>
-          <td style="padding:14px 20px;color:var(--text);">${s.name}</td>
-          <td style="padding:14px 20px;color:var(--muted);">${s.branch}</td>
-          <td style="padding:14px 20px;">
-            <select onchange="updateAuthMode('${s.roll}', this.value)" style="background:rgba(255,255,255,0.05);color:#fff;border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:4px;font-size:11px;outline:none;">
-               <option value="DIRECT" ${authVal !== 'OTP' ? 'selected' : ''}>Direct</option>
-               <option value="OTP" ${authVal === 'OTP' ? 'selected' : ''}>Email OTP</option>
-            </select>
-          </td>
-          <td style="padding:14px 20px;">${statusBadge}</td>
-          <td style="padding:14px 20px;font-family:'Space Mono',monospace;font-weight:700;color:${isSub && !isAbs ? 'var(--text)' : 'var(--muted2)'};">
-            ${isSub && !isAbs ? res.marks + ' / 50' : '-'}
-          </td>
-          <td style="padding:14px 20px; white-space:nowrap;">
-            ${!isSub ? `<button class="clear-btn" style="padding:4px 8px;font-size:11px;border-color:var(--red);color:var(--red);margin-right:4px;" onclick="markAbsent('${s.roll}')">Absent</button>` : ''}
-            ${isSub ? `<button class="clear-btn" style="padding:4px 8px;font-size:11px;border-color:var(--yellow);color:var(--yellow);margin-right:4px;" onclick="allowRetest('${s.roll}')">Retest</button>` : ''}
-            ${isSub && !isAbs ? `<button class="clear-btn" style="padding:4px 8px;font-size:11px;border-color:var(--blue-light);color:var(--blue-light);margin-right:4px;" onclick="viewStudentReport('${s.roll}')">Report</button>` : ''}
-            ${isSub && !isAbs ? `<button class="clear-btn" style="padding:4px 8px;font-size:11px;border-color:#10b981;color:#10b981;margin-right:4px;" onclick="emailStudentReport('${s.roll}')">Email PDF</button>` : ''}
-            <button class="clear-btn" style="padding:4px 8px;font-size:11px;border-color:var(--muted);color:var(--muted);margin-left:4px;" onclick="openEditStudent('${s.roll}')">Edit</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-  }
 }
 
 function getSystemDateString() {
