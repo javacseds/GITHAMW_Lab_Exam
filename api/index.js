@@ -17,7 +17,10 @@ app.use(express.static(path.join(__dirname, '..')));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
-
+app.get('/test', (req, res) => {
+    console.log(">>> TEST ROUTE EXECUTED <<<");
+    res.status(200).send("TEST API WORKING");
+});
 // Initialize Prisma Client with driver adapter
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -27,7 +30,18 @@ const pool = new Pool({
 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
-
+app.get('/api/health', async (req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({
+            status: "ONLINE"
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: "OFFLINE"
+        });
+    }
+});
 async function seedDefaultStudents() {
     console.log("[SEED] Running database seeding...");
     const requestedRolls = ["238U1A0422", "238U1A0439", "238U1A0440", "238U1A0434", "238U1A0520"];
@@ -52,75 +66,75 @@ async function seedDefaultStudents() {
             console.error(`[SEED] Failed to seed requested roll ${r}:`, err);
         }
     }
-    
+
     try {
         const count = await prisma.results.count();
         if (count <= requestedRolls.length + 2) {
             console.log("[SEED] Results database is empty. Seeding 54 default roster students...");
             const roster = [
-              { name: "Anjali",                    roll: "238U1A0568", branch: "B.Tech CSE" },
-              { name: "Krishna",                   roll: "238U1A0593", branch: "B.Tech CSE" },
-              { name: "Suri Snehanjali",           roll: "238U1A0507", branch: "B.Tech CSE" },
-              { name: "Kunta Samatha",             roll: "238U1A0412", branch: "B.Tech CSE" },
-              { name: "Lakshmi Bantrothu",         roll: "238U1A0504", branch: "B.Tech CSE" },
-              { name: "Pravallika",                roll: "238U1A0505", branch: "B.Tech CSE" },
-              { name: "Rajoli",                    roll: "238U1A0573", branch: "B.Tech CSE" },
-              { name: "Gaswetha",                  roll: "238U1A0565", branch: "B.Tech CSE" },
-              { name: "Dharamani",                 roll: "238U1A0595", branch: "B.Tech CSE" },
-              { name: "Chitha",                    roll: "238U1A0533", branch: "B.Tech CSE" },
-              { name: "Kalyani",                   roll: "238U1A0509", branch: "B.Tech CSE" },
-              { name: "Suvaneswari",               roll: "238U1A0569", branch: "B.Tech CSE" },
-              { name: "Jyothika Reddy",            roll: "238U1A0576", branch: "B.Tech CSE" },
-              { name: "Lakshmi Devi Pollakati",    roll: "238U1A0566", branch: "B.Tech CSE" },
-              { name: "Pravallika",                roll: "238U1A0574", branch: "B.Tech CSE" },
-              { name: "Mukkamalla",                roll: "238U1A0554", branch: "B.Tech CSE" },
-              { name: "Keerthana",                 roll: "238U1A0547", branch: "B.Tech CSE" },
-              { name: "Priya",                     roll: "238U1A0522", branch: "B.Tech CSE" },
-              { name: "Jainabi",                   roll: "238U1A0527", branch: "B.Tech CSE" },
-              { name: "Yesha",                     roll: "238U1A0559", branch: "B.Tech CSE" },
-              { name: "Hemalatha",                 roll: "238U1A0510", branch: "B.Tech CSE" },
-              { name: "Pending Name (238U1A3307)", roll: "238U1A3307", branch: "B.Tech CSE" },
-              { name: "Pending Name (238U1A0528)", roll: "238U1A0528", branch: "B.Tech CSE" },
-              { name: "Lakshminarasamma",          roll: "238U1A0536", branch: "B.Tech CSE" },
-              { name: "Param Archana",             roll: "238U1A0544", branch: "B.Tech CSE" },
-              { name: "Keerthana Jinka",           roll: "238U1A0535", branch: "B.Tech CSE" },
-              { name: "Pranaya Sri",               roll: "238U1A0555", branch: "B.Tech CSE" },
-              { name: "Varshitha",                 roll: "238U1A0513", branch: "B.Tech CSE" },
-              { name: "Yannam",                    roll: "238U1A0592", branch: "B.Tech CSE" },
-              { name: "Devi",                      roll: "238U1A0515", branch: "B.Tech CSE" },
-              { name: "Sneha",                     roll: "238U1A0583", branch: "B.Tech CSE" },
-              { name: "Chandrika",                 roll: "238U1A0585", branch: "B.Tech CSE" },
-              { name: "Bhumika Rama Bhumika",      roll: "238U1A3310", branch: "B.Tech CSE AIML" },
-              { name: "Hitha Pathipati",           roll: "238U1A3319", branch: "B.Tech CSE AIML" },
-              { name: "Machupalle",                roll: "238U1A0421", branch: "B.Tech ECE" },
-              { name: "Swami Golla",               roll: "238U1A0413", branch: "B.Tech ECE" },
-              { name: "Pooja",                     roll: "238U1A0415", branch: "B.Tech ECE" },
-              { name: "Mamatha",                   roll: "238U1A0443", branch: "B.Tech ECE" },
-              { name: "Manasa",                    roll: "238U1A0416", branch: "B.Tech ECE" },
-              { name: "Navya Sree",                roll: "238U1A0434", branch: "B.Tech ECE" },
-              { name: "Hemalatha",                 roll: "238U1A0417", branch: "B.Tech ECE" },
-              { name: "Dadana",                    roll: "238U1A0428", branch: "B.Tech ECE" },
-              { name: "Venkata Siri",              roll: "248U5A0404", branch: "B.Tech ECE" },
-              { name: "Bukke",                     roll: "238U1A0403", branch: "B.Tech ECE" },
-              { name: "Bellamkondu",               roll: "238U1A0402", branch: "B.Tech ECE" },
-              { name: "Dara",                      roll: "238U1A0408", branch: "B.Tech ECE" },
-              { name: "Bhargavi",                  roll: "248U5A0411", branch: "B.Tech ECE" },
-              { name: "Gaddam",                    roll: "238U1A0411", branch: "B.Tech ECE" },
-              { name: "Sree Koneti",               roll: "238U1A0419", branch: "B.Tech ECE" },
-              { name: "Pending Name (248U5A0206)", roll: "248U5A0206", branch: "B.Tech" },
-              { name: "Pending Name (248U5A0208)", roll: "248U5A0208", branch: "B.Tech" },
-              { name: "Pending Name (248U5A0207)", roll: "248U5A0207", branch: "B.Tech" },
-              { name: "Pending Name (248U5A0209)", roll: "248U5A0209", branch: "B.Tech" },
-              { name: "Pending Name (238U1A0440)", roll: "238U1A0440", branch: "B.Tech" }
+                { name: "Anjali", roll: "238U1A0568", branch: "B.Tech CSE" },
+                { name: "Krishna", roll: "238U1A0593", branch: "B.Tech CSE" },
+                { name: "Suri Snehanjali", roll: "238U1A0507", branch: "B.Tech CSE" },
+                { name: "Kunta Samatha", roll: "238U1A0412", branch: "B.Tech CSE" },
+                { name: "Lakshmi Bantrothu", roll: "238U1A0504", branch: "B.Tech CSE" },
+                { name: "Pravallika", roll: "238U1A0505", branch: "B.Tech CSE" },
+                { name: "Rajoli", roll: "238U1A0573", branch: "B.Tech CSE" },
+                { name: "Gaswetha", roll: "238U1A0565", branch: "B.Tech CSE" },
+                { name: "Dharamani", roll: "238U1A0595", branch: "B.Tech CSE" },
+                { name: "Chitha", roll: "238U1A0533", branch: "B.Tech CSE" },
+                { name: "Kalyani", roll: "238U1A0509", branch: "B.Tech CSE" },
+                { name: "Suvaneswari", roll: "238U1A0569", branch: "B.Tech CSE" },
+                { name: "Jyothika Reddy", roll: "238U1A0576", branch: "B.Tech CSE" },
+                { name: "Lakshmi Devi Pollakati", roll: "238U1A0566", branch: "B.Tech CSE" },
+                { name: "Pravallika", roll: "238U1A0574", branch: "B.Tech CSE" },
+                { name: "Mukkamalla", roll: "238U1A0554", branch: "B.Tech CSE" },
+                { name: "Keerthana", roll: "238U1A0547", branch: "B.Tech CSE" },
+                { name: "Priya", roll: "238U1A0522", branch: "B.Tech CSE" },
+                { name: "Jainabi", roll: "238U1A0527", branch: "B.Tech CSE" },
+                { name: "Yesha", roll: "238U1A0559", branch: "B.Tech CSE" },
+                { name: "Hemalatha", roll: "238U1A0510", branch: "B.Tech CSE" },
+                { name: "Pending Name (238U1A3307)", roll: "238U1A3307", branch: "B.Tech CSE" },
+                { name: "Pending Name (238U1A0528)", roll: "238U1A0528", branch: "B.Tech CSE" },
+                { name: "Lakshminarasamma", roll: "238U1A0536", branch: "B.Tech CSE" },
+                { name: "Param Archana", roll: "238U1A0544", branch: "B.Tech CSE" },
+                { name: "Keerthana Jinka", roll: "238U1A0535", branch: "B.Tech CSE" },
+                { name: "Pranaya Sri", roll: "238U1A0555", branch: "B.Tech CSE" },
+                { name: "Varshitha", roll: "238U1A0513", branch: "B.Tech CSE" },
+                { name: "Yannam", roll: "238U1A0592", branch: "B.Tech CSE" },
+                { name: "Devi", roll: "238U1A0515", branch: "B.Tech CSE" },
+                { name: "Sneha", roll: "238U1A0583", branch: "B.Tech CSE" },
+                { name: "Chandrika", roll: "238U1A0585", branch: "B.Tech CSE" },
+                { name: "Bhumika Rama Bhumika", roll: "238U1A3310", branch: "B.Tech CSE AIML" },
+                { name: "Hitha Pathipati", roll: "238U1A3319", branch: "B.Tech CSE AIML" },
+                { name: "Machupalle", roll: "238U1A0421", branch: "B.Tech ECE" },
+                { name: "Swami Golla", roll: "238U1A0413", branch: "B.Tech ECE" },
+                { name: "Pooja", roll: "238U1A0415", branch: "B.Tech ECE" },
+                { name: "Mamatha", roll: "238U1A0443", branch: "B.Tech ECE" },
+                { name: "Manasa", roll: "238U1A0416", branch: "B.Tech ECE" },
+                { name: "Navya Sree", roll: "238U1A0434", branch: "B.Tech ECE" },
+                { name: "Hemalatha", roll: "238U1A0417", branch: "B.Tech ECE" },
+                { name: "Dadana", roll: "238U1A0428", branch: "B.Tech ECE" },
+                { name: "Venkata Siri", roll: "248U5A0404", branch: "B.Tech ECE" },
+                { name: "Bukke", roll: "238U1A0403", branch: "B.Tech ECE" },
+                { name: "Bellamkondu", roll: "238U1A0402", branch: "B.Tech ECE" },
+                { name: "Dara", roll: "238U1A0408", branch: "B.Tech ECE" },
+                { name: "Bhargavi", roll: "248U5A0411", branch: "B.Tech ECE" },
+                { name: "Gaddam", roll: "238U1A0411", branch: "B.Tech ECE" },
+                { name: "Sree Koneti", roll: "238U1A0419", branch: "B.Tech ECE" },
+                { name: "Pending Name (248U5A0206)", roll: "248U5A0206", branch: "B.Tech" },
+                { name: "Pending Name (248U5A0208)", roll: "248U5A0208", branch: "B.Tech" },
+                { name: "Pending Name (248U5A0207)", roll: "248U5A0207", branch: "B.Tech" },
+                { name: "Pending Name (248U5A0209)", roll: "248U5A0209", branch: "B.Tech" },
+                { name: "Pending Name (238U1A0440)", roll: "238U1A0440", branch: "B.Tech" }
             ];
-            
+
             for (const s of roster) {
                 let dept = "CSE";
                 if (s.branch.toLowerCase().includes("ece")) dept = "ECE";
                 let section = "A";
                 const numMatch = s.roll.match(/\d+$/);
                 if (numMatch && parseInt(numMatch[0]) > 60) section = "B";
-                
+
                 await prisma.results.upsert({
                     where: { roll: s.roll },
                     update: {},
@@ -164,10 +178,10 @@ app.get('/api/results/live', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
-    
+
     sseClients.push(res);
     console.log(`[SSE] Client connected. Total active clients: ${sseClients.length}`);
-    
+
     req.on('close', () => {
         sseClients = sseClients.filter(c => c !== res);
         console.log(`[SSE] Client disconnected. Total active clients: ${sseClients.length}`);
@@ -241,12 +255,12 @@ app.post('/api/verify-otp', async (req, res) => {
             console.warn(`[API] No OTP record found for roll: ${roll}`);
             return res.status(400).json({ error: 'No OTP requested for this roll number' });
         }
-        
+
         if (Date.now() - Number(record.timestamp) > 10 * 60 * 1000) {
             console.warn(`[API] OTP expired for roll: ${roll}`);
             return res.status(400).json({ error: 'OTP expired' });
         }
-        
+
         if (record.otp === code) {
             console.log(`[API] OTP verification succeeded for roll: ${roll}. Deleting OTP record...`);
             await prisma.otps.delete({
@@ -272,7 +286,7 @@ app.post('/api/send-pdf', async (req, res) => {
         console.warn(`[API] Send-pdf validation failed: toEmail and pdfBase64 are required`);
         return res.status(400).json({ error: 'Email and PDF required' });
     }
-    
+
     const mailOptions = {
         from: process.env.GMAIL_USER || 'javacsedscs@gmail.com',
         to: toEmail,
@@ -304,8 +318,8 @@ app.post('/api/results', async (req, res) => {
     console.log(`[API] Received POST request to /api/results`);
     console.log(`[API] Payload received:`, JSON.stringify(req.body, null, 2));
 
-    const { 
-        roll, name, branch, marks, attempts, status, 
+    const {
+        roll, name, branch, marks, attempts, status,
         timestamp, questionDetails, timeTaken, lastActiveStr, lastSyncStr,
         correctCount, wrongCount, resultClassification, tabWarnings,
         examStartTime, examEndTime, submissionType, department, section
@@ -340,7 +354,7 @@ app.post('/api/results', async (req, res) => {
         let dbResponse;
         if (existing) {
             console.log(`[API] Record exists. Performing Prisma update for roll: ${roll}`);
-            
+
             // Critical security check: Do not let an ACTIVE or IDLE heartbeat override a SUBMITTED exam status
             if (existing.status === 'SUBMITTED' && (status === 'ACTIVE' || status === 'IDLE')) {
                 console.log(`[API] Roll ${roll} is already SUBMITTED. Heartbeat update ignored to prevent state demotion.`);
@@ -372,7 +386,7 @@ app.post('/api/results', async (req, res) => {
             if (mobile_number !== undefined && mobile_number !== null) updateData.mobile_number = mobile_number;
             if (email !== undefined && email !== null) updateData.email = email;
             if (exam_permission !== undefined && exam_permission !== null) updateData.exam_permission = exam_permission;
-            
+
             if (login_time !== undefined && login_time !== null) updateData.login_time = login_time;
             if (login_device !== undefined && login_device !== null) updateData.login_device = login_device;
             if (login_browser !== undefined && login_browser !== null) updateData.login_browser = login_browser;
@@ -383,10 +397,10 @@ app.post('/api/results', async (req, res) => {
 
             const reqStudentId = req.body.studentId || req.body.student_id;
             if (reqStudentId !== undefined && reqStudentId !== null && reqStudentId !== '') updateData.student_id = reqStudentId;
-            
+
             const reqExamId = req.body.examId || req.body.exam_id;
             if (reqExamId !== undefined && reqExamId !== null && reqExamId !== '') updateData.exam_id = reqExamId;
-            
+
             const reqPercentage = req.body.percentage;
             if (reqPercentage !== undefined && reqPercentage !== null) {
                 updateData.percentage = reqPercentage;
@@ -403,7 +417,7 @@ app.post('/api/results', async (req, res) => {
             console.log(`[API] Prisma update execution completed successfully`);
         } else {
             console.log(`[API] Record does not exist. Performing Prisma create for roll: ${roll}`);
-            
+
             const createData = {
                 roll,
                 name: name !== undefined ? name : null,
@@ -449,9 +463,9 @@ app.post('/api/results', async (req, res) => {
             });
             console.log(`[API] Prisma create execution completed successfully`);
         }
-        
+
         console.log(`[API] Database response:`, JSON.stringify(dbResponse, null, 2));
-        
+
         // Broadcast the real-time update to all connected SSE admin clients
         sseClients.forEach(client => {
             try {
@@ -654,12 +668,12 @@ app.get('/api/results/:roll', async (req, res) => {
         const row = await prisma.results.findUnique({
             where: { roll }
         });
-        
+
         if (!row) {
             console.log(`[API] Result for roll: ${roll} does not exist`);
             return res.json({ exists: false });
         }
-        
+
         console.log(`[API] Result for roll: ${roll} retrieved successfully`);
         res.json({
             exists: true,
@@ -731,5 +745,7 @@ if (require.main === module) {
         console.log(`[API] Server is listening on port ${PORT}`);
     });
 }
+console.log("=== REGISTERED ROUTES ===");
+
 
 module.exports = app;

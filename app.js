@@ -1030,14 +1030,6 @@ async function attemptLogin() {
           loginBtn.disabled = false;
           return;
       }
-      if (liveData.status === "ACTIVE" || liveData.status === "IDLE") {
-          loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
-          loginError.style.display = 'block';
-          rollInput.focus();
-          loginBtn.textContent = originalBtnText;
-          loginBtn.disabled = false;
-          return;
-      }
 
       let student = studentMap[roll];
       if (!student) {
@@ -1127,14 +1119,6 @@ async function attemptLogin() {
           }
           if (resData.status === "SUBMITTED") {
               loginError.textContent = "⚠ This student has already submitted the exam.";
-              loginError.style.display = 'block';
-              rollInput.focus();
-              loginBtn.textContent = originalBtnText;
-              loginBtn.disabled = false;
-              return;
-          }
-          if (resData.status === "ACTIVE" || resData.status === "IDLE") {
-              loginError.textContent = "⚠ Student already logged in. Multiple device logins are not allowed.";
               loginError.style.display = 'block';
               rollInput.focus();
               loginBtn.textContent = originalBtnText;
